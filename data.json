@@ -1,0 +1,194 @@
+{
+  "accounts": [
+    {
+      "id": "3442857e4ec85aab78866af2",
+      "firstName": "Ayden",
+      "lastName": "Pernat",
+      "email": "crimsoncreationgames@gmail.com",
+      "verifiedAt": "2026-08-31T23:24:15.369Z",
+      "passwordSalt": "efdefd31ff3e7121232967a6e0a7b5a0",
+      "passwordHash": "c89af62ba3c44bf6b4fcdb9d8e037d0c68398817f78d470a956c31e06be9eb435e059a72ae308370a2457510138541ecc45b4d9f990399c3e84dbb0670170824"
+    },
+    {
+      "id": "0eed409ad50f815ff82c8ba9",
+      "firstName": "Ayden",
+      "lastName": "Pernat",
+      "email": "aydenpernat@icloud.com",
+      "verifiedAt": "2026-09-01T00:15:29.685Z",
+      "passwordSalt": "d489932a58c1a46cb2752d73462ba80e",
+      "passwordHash": "f6ce95809ad1b451989f44b91b02eae35bd90ccfa7b7931a8130b26116d74b22d75c88ef040e89eb95d3b5d9b515db98f92cf64b39fc534d5891bd3b79691664"
+    },
+    {
+      "id": "4ec4aae7809702dcaa6df314",
+      "firstName": "josh",
+      "lastName": "Pernat",
+      "email": "joshuapernat@icloud.com",
+      "verifiedAt": null,
+      "verificationTokenHash": "be5386912ace018f24aa424615f8414176988fb982bd54fbfdfd823007f9598f",
+      "verificationExpiresAt": 1788308976663,
+      "passwordSalt": "7dd94853706706765ab1c564b9938f26",
+      "passwordHash": "ff1eb6bf86c48fc9eb8c9e16a03f8b033551f4aaef99969e38056bf81fdffcfbb8ffbf5764f265362fd619408bd71e75ffe38e595ab3f01acd6c54d54224a03e"
+    },
+    {
+      "id": "7c45e01618da36df53f307dd",
+      "firstName": "Ayden",
+      "lastName": "Pernat",
+      "email": "pernaayd000@stu.oasd.org",
+      "verifiedAt": "2026-09-01T00:31:28.582Z",
+      "passwordSalt": "167b41498bf462d582fd7e70330d647e",
+      "passwordHash": "c764fba863dac21532d67d8178a2b24ca8a65f44fef363dad62e072bb8e8a3aa9e0488861c4d73368ffa346b8ce35f54420d0f5dffdc8147bc885dc9760ce195"
+    }
+  ],
+  "projects": [],
+  "admins": [
+    {
+      "accountId": "3442857e4ec85aab78866af2",
+      "name": "Ayden Pernat"
+    }
+  ],
+  "comments": {
+    "project-1788224242356-322fe59f": [
+      {
+        "id": "90bae964551418a18f7c3d76",
+        "name": "Ayden Pernat",
+        "email": "crimsoncreationgames@gmail.com",
+        "rating": 5,
+        "subject": "good website",
+        "message": "test",
+        "createdAt": "2026-09-01T01:17:05.034Z"
+      }
+    ],
+    "project-1788225870217-db1f5c3e": [
+      {
+        "id": "da0eb70624fb5fc65de20c6b",
+        "name": "Ayden Pernat",
+        "email": "crimsoncreationgames@gmail.com",
+        "rating": 5,
+        "subject": "good website",
+        "message": "test 1",
+        "createdAt": "2026-09-01T01:24:41.251Z"
+      },
+      {
+        "id": "a9923cfe9520c10d7c42a7ea",
+        "name": "Ayden Pernat",
+        "email": "aydenpernat@icloud.com",
+        "rating": 5,
+        "subject": "good website",
+        "message": "i am owner",
+        "createdAt": "2026-09-01T01:25:09.766Z"
+      }
+    ],
+    "project-1788226393614-07a6d887": [
+      {
+        "id": "1d3f8be5a48ddc04965cdae2",
+        "name": "Ayden Pernat",
+        "email": "crimsoncreationgames@gmail.com",
+        "rating": 5,
+        "subject": "good website",
+        "message": "this is a test",
+        "createdAt": "2026-09-01T01:33:32.401Z"
+      },
+      {
+        "id": "240872910e8389496aefea4a",
+        "name": "Ayden Pernat",
+        "email": "aydenpernat@icloud.com",
+        "rating": 5,
+        "subject": "good website",
+        "message": "test",
+        "createdAt": "2026-09-01T01:33:58.851Z"
+      },
+      {
+        "id": "1732377c21b79f40e00088c0",
+        "name": "Ayden Pernat",
+        "email": "aydenpernat@icloud.com",
+        "rating": 5,
+        "subject": "good website",
+        "message": "so i can do this again and it will work",
+        "createdAt": "2026-09-01T01:34:17.847Z"
+      },
+      {
+        "id": "b3b1f46381b8a4d65543276c",
+        "name": "Ayden Pernat",
+        "email": "aydenpernat@icloud.com",
+        "rating": 5,
+        "subject": "good website",
+        "message": "I’ll inspect the rating button styles and initialization logic. The average project rating and the current user’s selected rating are different values, so I’ll make sure the five",
+        "createdAt": "2026-09-01T01:40:20.480Z"
+      },
+      {
+        "id": "bce8d709ceef6babad3674ab",
+        "name": "Ayden Pernat",
+        "email": "aydenpernat@icloud.com",
+        "rating": 5,
+        "subject": "good website",
+        "message": "test4",
+        "createdAt": "2026-09-01T01:48:41.449Z"
+      },
+      {
+        "id": "9c124cda8ccf59191cbb0275",
+        "name": "Ayden Pernat",
+        "email": "aydenpernat@icloud.com",
+        "rating": 5,
+        "subject": "good website",
+        "message": "show",
+        "createdAt": "2026-09-01T01:48:51.244Z"
+      },
+      {
+        "id": "348d09de732302822fa4ff05",
+        "name": "Ayden Pernat",
+        "email": "crimsoncreationgames@gmail.com",
+        "rating": 5,
+        "subject": "teset2",
+        "message": "asdf",
+        "createdAt": "2026-09-01T01:53:26.684Z"
+      }
+    ]
+  },
+  "ratings": {
+    "project-1788224242356-322fe59f": {
+      "crimsoncreationgames@gmail.com": 5,
+      "aydenpernat@icloud.com": 5
+    },
+    "project-1788225870217-db1f5c3e": {
+      "crimsoncreationgames@gmail.com": 3,
+      "aydenpernat@icloud.com": 5
+    },
+    "project-1788226393614-07a6d887": {
+      "crimsoncreationgames@gmail.com": 5,
+      "aydenpernat@icloud.com": 5
+    }
+  },
+  "contactRequests": [
+    {
+      "id": "417a76ddf1a0ab00ba925e0c",
+      "accountEmail": "crimsoncreationgames@gmail.com",
+      "name": "Teset",
+      "business": "fttttttttttttttt",
+      "email": "aydenpernat@icloud.com",
+      "phone": "f",
+      "budget": "f",
+      "pages": "f",
+      "details": "f",
+      "projectGoal": "f",
+      "projectStyle": "f",
+      "projectPages": "f",
+      "projectTimeline": "f",
+      "status": "confirmed",
+      "progress": 0,
+      "notifications": [],
+      "createdAt": "2026-09-01T03:10:57.468Z"
+    }
+  ],
+  "sessions": [
+    {
+      "accountId": "7c45e01618da36df53f307dd",
+      "tokenHash": "2c4da985327d8dcb372e42275dc4252884ba108b97ded8732b47b84d67a1dc63",
+      "expiresAt": 1788827488585
+    },
+    {
+      "accountId": "3442857e4ec85aab78866af2",
+      "tokenHash": "316b7f1497f3cbfb4051530e3a1640aa6f8eed8fabd2f2659634a0e44cb52266",
+      "expiresAt": 1788836930891
+    }
+  ]
+}

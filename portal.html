@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Client Portal</title>
+    <meta name="description" content="The Crimson Creations client portal for checking website project progress.">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="stylesheet" href="style.css?v=5">
+</head>
+
+<body>
+    <header class="site-header">
+        <a class="brand" href="index.html"><span class="brand-mark"><img src="img/crimson-logo.jpg" alt=""></span><span>Crimson</span> Creations</a>
+        <button id="menu-toggle" class="menu-toggle" aria-label="Open menu" aria-expanded="false">
+            <i id="bar" class="fa-solid fa-bars" aria-hidden="true"></i>
+        </button>
+        <nav id="navbar" class="site-nav" aria-label="Primary">
+            <a href="index.html">Home</a>
+            <a href="services.html">Services</a>
+            <a href="projects.html">Projects</a>
+            <a href="about.html">About</a>
+            <a href="contact.html">Contact</a>
+            <a class="active" href="portal.html">Portal</a>
+        </nav>
+    </header>
+
+    <main class="page-shell">
+        <section class="page-hero">
+            <div class="page-banner reveal-on-scroll">
+                <p class="section-eyebrow">Client portal</p>
+                <h1 class="page-title">Your project, without the guessing.</h1>
+                <p>Sign in to review your project details, leave feedback, and keep the next step in one place.</p>
+            </div>
+        </section>
+
+        <section class="section card-section">
+            <div class="portal-layout signed-out" id="portal-layout">
+                <div class="portal-card reveal-on-scroll">
+                    <p class="eyebrow">Client sign in</p>
+                    <h2 class="section-title" style="font-size: 2rem;">Welcome back.</h2>
+                    <p>Use the email and password connected to your project to open your workspace.</p>
+                    <form class="portal-form" id="portal-form">
+                        <div class="field">
+                            <label for="portal-email">Email</label>
+                            <input id="portal-email" type="email" placeholder="you@example.com" required>
+                        </div>
+                        <div class="field">
+                            <label for="portal-password">Password</label>
+                            <div class="password-field">
+                                <input id="portal-password" type="password" placeholder="Your password" autocomplete="current-password" required>
+                                <button class="password-toggle" type="button" aria-controls="portal-password" aria-label="Show password">
+                                    <i class="fa-solid fa-eye" aria-hidden="true"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <button class="btn btn-primary" type="submit">Sign in</button>
+                        <button class="btn btn-secondary" id="portal-signup" type="button">Create an account</button>
+                        <p class="portal-status" id="portal-status" aria-live="polite">Your account and workspace are securely managed by this site.</p>
+                    </form>
+                </div>
+
+                <div class="portal-card portal-signup-card reveal-on-scroll" id="portal-signup-panel" hidden>
+                    <p class="eyebrow">New client account</p>
+                    <h2 class="section-title" style="font-size: 2rem;">Create your portal.</h2>
+                    <p>Use your name, email, and a password so your project updates can be connected to you.</p>
+                    <form class="portal-form" id="portal-signup-form">
+                        <div class="form-grid">
+                            <div class="field">
+                                <label for="portal-first-name">First name</label>
+                                <input id="portal-first-name" type="text" autocomplete="given-name" required>
+                            </div>
+                            <div class="field">
+                                <label for="portal-last-name">Last name</label>
+                                <input id="portal-last-name" type="text" autocomplete="family-name" required>
+                            </div>
+                            <div class="field full">
+                                <label for="portal-signup-email">Email</label>
+                                <input id="portal-signup-email" type="email" placeholder="you@example.com" autocomplete="email" required>
+                            </div>
+                            <div class="field full">
+                                <label for="portal-signup-password">Password</label>
+                                <div class="password-field">
+                                    <input id="portal-signup-password" type="password" placeholder="At least 8 characters" autocomplete="new-password" minlength="8" required>
+                                    <button class="password-toggle" type="button" aria-controls="portal-signup-password" aria-label="Show password">
+                                        <i class="fa-solid fa-eye" aria-hidden="true"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        <button class="btn btn-primary" type="submit">Create account</button>
+                        <button class="btn btn-secondary" id="portal-back-to-signin" type="button">Back to sign in</button>
+                        <p class="portal-status" id="portal-signup-status" aria-live="polite"></p>
+                    </form>
+                </div>
+
+                <div class="portal-card portal-preview reveal-on-scroll" id="portal-preview" hidden>
+                    <div class="portal-topline">
+                        <div>
+                            <p class="portal-kicker">Workspace</p>
+                            <h2>Project dashboard</h2>
+                        </div>
+                        <div class="portal-topline-actions">
+                            <span class="tag-pill" data-active-projects>No active project</span>
+                            <button class="btn btn-secondary portal-signout" id="portal-signout" type="button">Sign out</button>
+                        </div>
+                    </div>
+                        <div class="portal-profile">
+                        <div class="profile-avatar" data-client-initials>CC</div>
+                        <div>
+                            <strong data-client-name>Client</strong>
+                            <p data-project-state>No current projects yet</p>
+                            <span class="portal-role" data-account-role>Client account</span>
+                        </div>
+                    </div>
+                    <div class="portal-stats">
+                        <div class="portal-stat"><strong data-workspace-stat-progress>00%</strong><span>Project progress</span></div>
+                        <div class="portal-stat"><strong data-workspace-stat-updates>00</strong><span>Project updates</span></div>
+                        <div class="portal-stat"><strong data-workspace-stat-next>--</strong><span>Next step</span></div>
+                    </div>
+                    <div class="portal-progress">
+                        <span class="portal-kicker" data-workspace-progress-label>Waiting for a project</span>
+                        <div class="portal-progress-track" aria-label="Project progress: 0 percent"><span style="width: 0%;"></span></div>
+                    </div>
+                    <p data-workspace-message>Your workspace will show project updates, files, approvals, and milestones here when a project is connected.</p>
+                    <div class="portal-settings">
+                        <div class="portal-setting"><span>Account email</span><strong data-client-email>Not connected</strong></div>
+                        <div class="portal-setting"><span>Notifications</span><strong>On for updates</strong></div>
+                    </div>
+                    <section class="workspace-updates" id="workspace-updates" hidden>
+                        <div class="workspace-updates-heading">
+                            <div>
+                                <p class="portal-kicker">Project updates</p>
+                                <h3>Notes from your project</h3>
+                            </div>
+                            <span class="tag-pill" data-workspace-progress>0% complete</span>
+                        </div>
+                        <div class="workspace-notification-list" id="workspace-notification-list"></div>
+                        <p class="admin-access-note" id="workspace-empty">Your project updates will appear here.</p>
+                    </section>
+                    <div class="admin-panel" id="admin-panel" hidden>
+                        <p class="eyebrow">Administrator tools</p>
+                        <details class="admin-tool-section admin-management-tool">
+                            <summary>
+                                <span>
+                                    <strong>Manage administrators</strong>
+                                    <small>Control who can manage the site</small>
+                                </span>
+                                <i class="fa-solid fa-chevron-down" aria-hidden="true"></i>
+                            </summary>
+                            <div class="admin-tool-content">
+                                <p class="admin-access-note">The owner account cannot be removed. Other administrators must have verified accounts.</p>
+                                <div class="admin-list" id="admin-list"></div>
+                                <form class="admin-project-form" id="admin-management-form" autocomplete="off">
+                                    <div class="field">
+                                        <label for="admin-name">Name</label>
+                                        <input id="admin-name" type="text" autocomplete="off" placeholder="Administrator name" required>
+                                    </div>
+                                    <div class="field">
+                                        <label for="admin-email">Account email</label>
+                                        <input id="admin-email" type="email" autocomplete="off" placeholder="admin@example.com" required>
+                                    </div>
+                                    <button class="btn btn-secondary" type="submit">Add administrator</button>
+                                    <p class="portal-status" id="admin-management-status" aria-live="polite"></p>
+                                </form>
+                            </div>
+                        </details>
+                        <details class="admin-tool-section">
+                            <summary>
+                                <span>
+                                    <strong>Add a project</strong>
+                                    <small>Open the full project template</small>
+                                </span>
+                                <i class="fa-solid fa-chevron-down" aria-hidden="true"></i>
+                            </summary>
+                            <div class="admin-tool-content">
+                                <p>This form uses the standard project-card template. Add as many active client projects as you need, and each one will appear on the Projects page and in its search results.</p>
+                                <p class="admin-access-note">Local workspace note: projects and admin changes are saved in this browser only while using Live Server. They are not shared with public visitors yet.</p>
+                                <p class="admin-capacity" id="admin-project-capacity" aria-live="polite">0 active projects</p>
+                                <form class="admin-project-form" id="admin-project-form" autocomplete="off">
+                            <div class="field">
+                                <label for="admin-project-existing">Edit an existing project</label>
+                                <select id="admin-project-existing" class="custom-select-native" autocomplete="off" tabindex="-1" aria-hidden="true">
+                                    <option value="">Create a new project</option>
+                                </select>
+                                <div class="custom-select" id="admin-project-select">
+                                    <button class="custom-select-trigger" type="button" aria-haspopup="listbox" aria-expanded="false">
+                                        <span>Create a new project</span>
+                                        <i class="fa-solid fa-chevron-down" aria-hidden="true"></i>
+                                    </button>
+                                    <div class="custom-select-menu" role="listbox" hidden></div>
+                                </div>
+                            </div>
+                            <div class="field">
+                                <label for="admin-project-name">Project name</label>
+                                <input id="admin-project-name" type="text" autocomplete="off" placeholder="Example: Northside Coffee" required>
+                            </div>
+                            <div class="field">
+                                <label for="admin-project-description">Short description</label>
+                                <textarea id="admin-project-description" autocomplete="off" rows="3" placeholder="What did this website help the client do?" required></textarea>
+                            </div>
+                            <div class="field">
+                                <label for="admin-project-link">Live site link</label>
+                                <input id="admin-project-link" type="url" autocomplete="off" placeholder="https://example.com">
+                            </div>
+                            <div class="field">
+                                <label for="admin-project-owner-email">Website owner email</label>
+                                <input id="admin-project-owner-email" type="email" autocomplete="off" placeholder="owner@example.com" required>
+                            </div>
+                            <div class="field">
+                                <label for="admin-project-badges">Card labels</label>
+                                <input id="admin-project-badges" type="text" autocomplete="off" placeholder="Client website, Live project, Owner connected">
+                            </div>
+                            <div class="admin-detail-fields">
+                                <div>
+                                    <p class="eyebrow">What I built details</p>
+                                    <p>These fields control the full “What I built” section inside this project’s detail page.</p>
+                                </div>
+                                <div class="field">
+                                    <label for="admin-project-build-title">What I built heading</label>
+                                <input id="admin-project-build-title" name="what_built_title" type="text" autocomplete="off" placeholder="A clear path from first look to next step." required>
+                                </div>
+                                <div class="field">
+                                    <label for="admin-project-build-description">What I built description</label>
+                                <textarea id="admin-project-build-description" name="what_built_description" autocomplete="off" rows="3" placeholder="Describe what this project was shaped around." required></textarea>
+                                </div>
+                                <div class="field">
+                                    <label for="admin-project-direction">Direction</label>
+                                <input id="admin-project-direction" name="what_built_direction" type="text" autocomplete="off" placeholder="focused, polished, and practical" required>
+                                </div>
+                                <div class="field">
+                                    <label for="admin-project-structure">Structure</label>
+                                <input id="admin-project-structure" name="what_built_structure" type="text" autocomplete="off" placeholder="clear pages, sections, and calls to action" required>
+                                </div>
+                                <div class="field">
+                                    <label for="admin-project-focus">Focus</label>
+                                <input id="admin-project-focus" name="what_built_focus" type="text" autocomplete="off" placeholder="making the client's offer easy to understand" required>
+                                </div>
+                                <div class="field">
+                                    <label for="admin-project-tags">Tags</label>
+                                <input id="admin-project-tags" name="what_built_tags" type="text" autocomplete="off" placeholder="restaurant, branding, contact form" required>
+                                </div>
+                            </div>
+                            <button class="btn btn-primary" id="admin-project-submit" type="submit">Add project</button>
+                                    <p class="portal-status" id="admin-project-status" aria-live="polite"></p>
+                                </form>
+                            </div>
+                        </details>
+                        <details class="admin-tool-section">
+                            <summary>
+                                <span>
+                                    <strong>Newsletter control</strong>
+                                    <small>Prepare future updates for your audience</small>
+                                </span>
+                                <i class="fa-solid fa-chevron-down" aria-hidden="true"></i>
+                            </summary>
+                            <div class="admin-tool-content">
+                                <p>This is a template for future newsletter controls. Sending is intentionally disabled until the newsletter workflow is connected.</p>
+                                <form class="admin-project-form newsletter-form" id="newsletter-form" autocomplete="off">
+                                    <div class="field">
+                                        <label for="newsletter-subject">Newsletter subject</label>
+                                        <input id="newsletter-subject" type="text" autocomplete="off" placeholder="A useful update from Crimson Creations">
+                                    </div>
+                                    <div class="field">
+                                        <label for="newsletter-message">Newsletter message</label>
+                                        <textarea id="newsletter-message" autocomplete="off" rows="5" placeholder="Write an update for your subscribers."></textarea>
+                                    </div>
+                                    <button class="btn btn-secondary" type="button" disabled>Newsletter sending coming soon</button>
+                                </form>
+                            </div>
+                        </details>
+                        <details class="admin-tool-section admin-requests-tool">
+                            <summary>
+                                <span>
+                                    <strong>Current requests</strong>
+                                    <small>Review new project forms and project progress</small>
+                                </span>
+                                <i class="fa-solid fa-chevron-down" aria-hidden="true"></i>
+                            </summary>
+                            <div class="admin-tool-content">
+                                <div class="request-tabs" role="tablist" aria-label="Request status">
+                                    <button class="request-tab is-active" type="button" role="tab" aria-selected="true" data-request-tab="pending">Pending <span data-request-count="pending">0</span></button>
+                                    <button class="request-tab" type="button" role="tab" aria-selected="false" data-request-tab="confirmed">Confirmed <span data-request-count="confirmed">0</span></button>
+                                    <button class="request-tab" type="button" role="tab" aria-selected="false" data-request-tab="completed">Completed <span data-request-count="completed">0</span></button>
+                                </div>
+                                <div class="field request-search-field">
+                                    <label for="request-search">Search current requests</label>
+                                    <input id="request-search" type="search" autocomplete="off" placeholder="Search by name, business, or email">
+                                </div>
+                                <div class="request-list" id="request-list"></div>
+                                <p class="admin-access-note" id="request-empty">No requests in this tab yet.</p>
+                            </div>
+                        </details>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <footer class="footer">
+        <div class="footer-grid">
+            <div>
+                <a class="brand" href="index.html"><span class="brand-mark"><img src="img/crimson-logo.jpg" alt=""></span><span>Crimson</span> Creations</a>
+                <p style="margin-top: 14px;">Websites and games made by someone who is always learning.</p>
+            </div>
+            <div>
+                <h4>Pages</h4>
+                <div class="footer-links">
+                    <a href="services.html">Services</a>
+                    <a href="projects.html">Projects</a>
+                    <a href="about.html">About</a>
+                    <a href="contact.html">Contact</a>
+                </div>
+            </div>
+            <div>
+                <h4>Portal</h4>
+                <div class="footer-links">
+                    <span>Project status</span>
+                    <span>Updates</span>
+                    <span>Milestones</span>
+                    <span>Client access</span>
+                </div>
+            </div>
+            <div>
+                <h4>Need a website?</h4>
+                <p>Start with a few details and I will help shape the next step.</p>
+                <div class="social-links">
+                    <a href="contact.html" aria-label="Contact Crimson Creations" title="Contact Crimson Creations"><i class="fa-solid fa-arrow-right" aria-hidden="true"></i></a>
+                    <a href="contact.html" aria-label="Start a project request" title="Start a project request"><i class="fa-solid fa-arrow-right" aria-hidden="true"></i></a>
+                </div>
+            </div>
+        </div>
+        <div class="footer-bottom">
+            <span>(c) 2026 Crimson Creations. All rights reserved.</span>
+            <span>Built for ideas in progress.</span>
+        </div>
+    </footer>
+
+    <script src="admin.js?v=1"></script>
+    <script src="script.js?v=11"></script>
+</body>
+
+</html>
