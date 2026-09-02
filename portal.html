@@ -13,7 +13,7 @@
 <body>
     <header class="site-header">
         <a class="brand" href="index.html"><span class="brand-mark"><img src="img/crimson-logo.jpg" alt=""></span><span>Crimson</span> Creations</a>
-        <button id="menu-toggle" class="menu-toggle" aria-label="Open menu" aria-expanded="false">
+        <button id="menu-toggle" class="menu-toggle" type="button" aria-label="Open menu" aria-expanded="false">
             <i id="bar" class="fa-solid fa-bars" aria-hidden="true"></i>
         </button>
         <nav id="navbar" class="site-nav" aria-label="Primary">
@@ -87,6 +87,12 @@
                                         <i class="fa-solid fa-eye" aria-hidden="true"></i>
                                     </button>
                                 </div>
+                            </div>
+                            <div class="field full">
+                                <label class="checkbox-field">
+                                    <input id="portal-newsletter-opt-in" name="newsletterOptIn" type="checkbox">
+                                    <span>Send me occasional Crimson Creations updates and newsletter emails.</span>
+                                </label>
                             </div>
                         </div>
                         <button class="btn btn-primary" type="submit">Create account</button>
@@ -176,7 +182,7 @@
                             </summary>
                             <div class="admin-tool-content">
                                 <p>This form uses the standard project-card template. Add as many active client projects as you need, and each one will appear on the Projects page and in its search results.</p>
-                                <p class="admin-access-note">Local workspace note: projects and admin changes are saved in this browser only while using Live Server. They are not shared with public visitors yet.</p>
+                                <p class="admin-access-note">Project changes are saved by the local server. Keep the server running for visitors to see the latest portfolio.</p>
                                 <p class="admin-capacity" id="admin-project-capacity" aria-live="polite">0 active projects</p>
                                 <form class="admin-project-form" id="admin-project-form" autocomplete="off">
                             <div class="field">
@@ -198,14 +204,21 @@
                             </div>
                             <div class="field">
                                 <label for="admin-project-description">Short description</label>
-                                <textarea id="admin-project-description" autocomplete="off" rows="3" placeholder="What did this website help the client do?" required></textarea>
+                                <textarea id="admin-project-description" autocomplete="off" rows="3" placeholder="What did this project help the client do?" required></textarea>
+                            </div>
+                            <div class="field">
+                                <span class="field-label">Project type</span>
+                                <div class="project-type-tabs" role="tablist" aria-label="Project type">
+                                    <button class="project-type-tab is-active" type="button" role="tab" aria-selected="true" data-project-type="website">Website</button>
+                                    <button class="project-type-tab" type="button" role="tab" aria-selected="false" data-project-type="game">Game</button>
+                                </div>
                             </div>
                             <div class="field">
                                 <label for="admin-project-link">Live site link</label>
                                 <input id="admin-project-link" type="url" autocomplete="off" placeholder="https://example.com">
                             </div>
                             <div class="field">
-                                <label for="admin-project-owner-email">Website owner email</label>
+                                    <label for="admin-project-owner-email">Project owner email</label>
                                 <input id="admin-project-owner-email" type="email" autocomplete="off" placeholder="owner@example.com" required>
                             </div>
                             <div class="field">
@@ -251,12 +264,12 @@
                             <summary>
                                 <span>
                                     <strong>Newsletter control</strong>
-                                    <small>Prepare future updates for your audience</small>
+                                    <small>Draft updates for your audience</small>
                                 </span>
                                 <i class="fa-solid fa-chevron-down" aria-hidden="true"></i>
                             </summary>
                             <div class="admin-tool-content">
-                                <p>This is a template for future newsletter controls. Sending is intentionally disabled until the newsletter workflow is connected.</p>
+                                <p>Write a newsletter and send it to verified accounts that opted in to receive updates.</p>
                                 <form class="admin-project-form newsletter-form" id="newsletter-form" autocomplete="off">
                                     <div class="field">
                                         <label for="newsletter-subject">Newsletter subject</label>
@@ -266,7 +279,8 @@
                                         <label for="newsletter-message">Newsletter message</label>
                                         <textarea id="newsletter-message" autocomplete="off" rows="5" placeholder="Write an update for your subscribers."></textarea>
                                     </div>
-                                    <button class="btn btn-secondary" type="button" disabled>Newsletter sending coming soon</button>
+                                    <button class="btn btn-secondary" id="newsletter-send" type="submit">Send newsletter</button>
+                                    <p class="portal-status" id="newsletter-status" aria-live="polite"></p>
                                 </form>
                             </div>
                         </details>
@@ -338,7 +352,7 @@
     </footer>
 
     <script src="admin.js?v=1"></script>
-    <script src="script.js?v=11"></script>
+<script src="script.js?v=26"></script>
 </body>
 
 </html>

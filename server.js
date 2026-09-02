@@ -26,7 +26,7 @@ app.use((_request, response, next) => {
     response.setHeader('X-Frame-Options', 'DENY');
     response.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
     response.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
-    response.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; font-src 'self' https://cdnjs.cloudflare.com; img-src 'self' data: https:; connect-src 'self'; form-action 'self'");
+    response.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://fonts.googleapis.com; font-src 'self' https://cdnjs.cloudflare.com https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self'; form-action 'self'");
     if (process.env.NODE_ENV === 'production') response.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
     next();
 });
@@ -80,6 +80,21 @@ async function sendVerificationEmail(email, token) {
     const reason = body.message || `Resend returned HTTP ${result.status}.`;
     console.error(`Resend rejected verification email: ${reason}`);
     return { ok: false, error: 'Resend rejected the verification email. Check the sender address and Resend recipient restrictions.' };
+}
+
+async function sendNewsletterEmail(email, subject, message) {
+    const result = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${process.env.RESEND_API_KEY}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            from: process.env.RESEND_FROM_EMAIL,
+            to: [email],
+            subject,
+            text: `${message}\n\nYou received this because you opted in to Crimson Creations updates.`,
+            html: `<div>${escapeHtml(message).replace(/\r?\n/g, '<br>')}</div><p>You received this because you opted in to Crimson Creations updates.</p>`
+        })
+    });
+    return result.ok;
 }
 
 function passwordMatches(password, account) {
@@ -141,7 +156,7 @@ app.post('/api/auth/signup', async (request, response) => {
     const data = readData();
     if (data.accounts.some(account => normalizeEmail(account.email) === normalizedEmail)) return response.status(409).json({ error: 'That email already has an account.' });
     const verificationToken = crypto.randomBytes(32).toString('hex');
-    const account = { id: crypto.randomBytes(12).toString('hex'), firstName: String(firstName).trim(), lastName: String(lastName).trim(), email: normalizedEmail, verifiedAt: null, verificationTokenHash: hashToken(verificationToken), verificationExpiresAt: Date.now() + 24 * 60 * 60 * 1000, ...hashPassword(password) };
+    const account = { id: crypto.randomBytes(12).toString('hex'), firstName: String(firstName).trim(), lastName: String(lastName).trim(), email: normalizedEmail, newsletterOptIn: request.body?.newsletterOptIn === true, verifiedAt: null, verificationTokenHash: hashToken(verificationToken), verificationExpiresAt: Date.now() + 24 * 60 * 60 * 1000, ...hashPassword(password) };
     data.accounts.push(account);
     let verificationResult;
     try { verificationResult = await sendVerificationEmail(normalizedEmail, verificationToken); } catch { verificationResult = { ok: false, error: 'The email service could not be reached.' }; }
@@ -191,7 +206,7 @@ app.get('/api/projects', (_request, response) => {
         const ratings = Object.values(data.ratings[project.id] || {});
         return { ...project, rating: ratings.length ? ratings.reduce((sum, rating) => sum + rating, 0) / ratings.length : 0, ratingCount: ratings.length };
     });
-    response.json({ projects });
+    response.json({ projects, websiteCount: projects.filter(project => project.projectType !== 'game').length });
 });
 
 app.get('/api/projects/:id/feedback', (request, response) => {
@@ -199,7 +214,7 @@ app.get('/api/projects/:id/feedback', (request, response) => {
     if (!data.projects.some(project => project.id === request.params.id)) return response.status(404).json({ error: 'Project not found.' });
     const comments = Array.isArray(data.comments[request.params.id]) ? data.comments[request.params.id] : [];
     const viewer = currentAccount(request);
-    const viewerIsAdmin = viewer && publicAccount(viewer).role === 'admin';
+    const viewerIsAdmin = viewer && ['admin', 'owner'].includes(publicAccount(viewer).role);
     const ratings = Object.values(data.ratings[request.params.id] || {});
     const average = ratings.length ? ratings.reduce((sum, rating) => sum + rating, 0) / ratings.length : 0;
     const viewerRating = viewer ? Number(data.ratings[request.params.id]?.[normalizeEmail(viewer.email)] || 0) : 0;
@@ -254,7 +269,7 @@ app.delete('/api/projects/:id/feedback/comments/:commentId', (request, response)
     if (!data.projects.some(project => project.id === request.params.id)) return response.status(404).json({ error: 'Project not found.' });
     const comments = Array.isArray(data.comments[request.params.id]) ? data.comments[request.params.id] : [];
     const comment = comments.find(item => item.id === request.params.commentId);
-    const isAdmin = publicAccount(account).role === 'admin';
+    const isAdmin = ['admin', 'owner'].includes(publicAccount(account).role);
     if (!comment) return response.status(404).json({ error: 'Comment not found.' });
     if (!isAdmin && normalizeEmail(comment.email) !== normalizeEmail(account.email)) return response.status(403).json({ error: 'You can only delete your own comment.' });
     data.comments[request.params.id] = comments.filter(item => item.id !== request.params.commentId);
@@ -262,9 +277,38 @@ app.delete('/api/projects/:id/feedback/comments/:commentId', (request, response)
     response.json({ ok: true });
 });
 
+function normalizeProjectPayload(input = {}) {
+    const projectType = input.projectType === 'game' ? 'game' : input.projectType === 'website' ? 'website' : '';
+    const project = {
+        name: String(input.name || '').trim().slice(0, 160),
+        description: String(input.description || '').trim().slice(0, 4000),
+        tags: String(input.tags || '').trim().slice(0, 500),
+        link: String(input.link || '').trim().slice(0, 500),
+        ownerEmail: normalizeEmail(input.ownerEmail).slice(0, 200),
+        badges: String(input.badges || '').trim().slice(0, 500),
+        direction: String(input.direction || '').trim().slice(0, 1000),
+        structure: String(input.structure || '').trim().slice(0, 1000),
+        focus: String(input.focus || '').trim().slice(0, 1000),
+        buildTitle: String(input.buildTitle || '').trim().slice(0, 240),
+        buildDescription: String(input.buildDescription || '').trim().slice(0, 2000),
+        projectType
+    };
+    if (!project.name || !project.description || !project.ownerEmail || !projectType) return { error: 'Name, description, owner email, and project type are required.' };
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(project.ownerEmail)) return { error: 'Enter a valid project owner email.' };
+    if (project.link) {
+        try {
+            const url = new URL(project.link);
+            if (!['http:', 'https:'].includes(url.protocol)) throw new Error();
+        } catch { return { error: 'The project link must be a valid http or https URL.' }; }
+    }
+    return { project };
+}
+
 app.post('/api/projects', (request, response) => {
     if (!requireAccount(request, response, true)) return;
-    const project = { ...request.body, id: request.body?.id || `project-${Date.now()}-${crypto.randomBytes(4).toString('hex')}` };
+    const normalized = normalizeProjectPayload(request.body);
+    if (normalized.error) return response.status(400).json({ error: normalized.error });
+    const project = { ...normalized.project, id: `project-${Date.now()}-${crypto.randomBytes(4).toString('hex')}` };
     const data = readData(); data.projects.push(project); writeData(data);
     response.status(201).json({ project });
 });
@@ -273,7 +317,9 @@ app.put('/api/projects/:id', (request, response) => {
     if (!requireAccount(request, response, true)) return;
     const data = readData(); const index = data.projects.findIndex(project => project.id === request.params.id);
     if (index < 0) return response.status(404).json({ error: 'Project not found.' });
-    data.projects[index] = { ...request.body, id: request.params.id }; writeData(data);
+    const normalized = normalizeProjectPayload(request.body);
+    if (normalized.error) return response.status(400).json({ error: normalized.error });
+    data.projects[index] = { ...normalized.project, id: request.params.id }; writeData(data);
     response.json({ project: data.projects[index] });
 });
 
@@ -297,6 +343,34 @@ app.get('/api/admins', (request, response) => {
         roster.push({ accountId: admin.accountId, name: admin.name || `${account?.firstName || 'Administrator'} ${account?.lastName || ''}`.trim(), email: normalizeEmail(admin.email || account?.email), isOwner: false });
     });
     response.json({ admins: roster });
+});
+
+app.post('/api/newsletter', async (request, response) => {
+    const account = requireAccount(request, response, true);
+    if (!account) return;
+    const subject = String(request.body?.subject || '').trim();
+    const message = String(request.body?.message || '').trim();
+    if (!subject || !message || subject.length > 160 || message.length > 5000) {
+        return response.status(400).json({ error: 'Add a subject and message within the allowed length.' });
+    }
+    if (!process.env.RESEND_API_KEY || !process.env.RESEND_FROM_EMAIL) {
+        return response.status(503).json({ error: 'Newsletter sending is not configured yet.' });
+    }
+
+    const recipients = readData().accounts.filter(item => item.verifiedAt && item.newsletterOptIn === true && normalizeEmail(item.email));
+    let sent = 0;
+    let failed = 0;
+    for (const recipient of recipients) {
+        try {
+            if (await sendNewsletterEmail(normalizeEmail(recipient.email), subject, message)) sent += 1;
+            else failed += 1;
+        } catch (error) {
+            failed += 1;
+            console.error(`Newsletter delivery failed: ${error.message}`);
+        }
+    }
+    if (sent === 0 && failed > 0) return response.status(502).json({ error: 'The newsletter could not be delivered to any opted-in subscribers.', sent, failed });
+    response.json({ ok: true, sent, failed, total: recipients.length });
 });
 
 app.post('/api/admins', (request, response) => {
@@ -357,7 +431,7 @@ app.post('/api/contact', async (request, response) => {
     writeData(data);
     const recipient = configuredAdminEmails[0];
     if (!process.env.RESEND_API_KEY || !process.env.RESEND_FROM_EMAIL || !recipient) {
-        return response.status(503).json({ success: false, message: 'The contact form is not configured yet.' });
+        return response.status(202).json({ success: true, message: 'Your request was saved. Email notifications are not configured yet.' });
     }
     const text = [
         `Name: ${contactRequest.name}`,
@@ -390,12 +464,12 @@ app.post('/api/contact', async (request, response) => {
         const body = await result.json().catch(() => ({}));
         if (!result.ok) {
             console.error(`Resend rejected contact request: ${body.message || `HTTP ${result.status}`}`);
-            return response.status(502).json({ success: false, message: 'The contact service could not accept the request.' });
+            return response.status(202).json({ success: true, message: 'Your request was saved, but the email notification could not be delivered.' });
         }
         response.json({ success: true, message: 'Request sent.' });
     } catch (error) {
         console.error(`Resend contact request failed: ${error.message}`);
-        response.status(502).json({ success: false, message: 'The contact service is temporarily unavailable.' });
+        response.status(202).json({ success: true, message: 'Your request was saved, but the email notification is temporarily unavailable.' });
     }
 });
 

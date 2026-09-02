@@ -6,12 +6,18 @@ const header = document.querySelector('.site-header');
 function setMenuState(isOpen) {
     if (!menuButton || !menuIcon || !nav) return;
 
+    const wasOpen = nav.classList.contains('active');
     nav.classList.toggle('active', isOpen);
     menuButton.classList.toggle('is-open', isOpen);
+    menuButton.classList.toggle('is-closing', !isOpen && wasOpen);
     menuButton.setAttribute('aria-expanded', String(isOpen));
     menuButton.setAttribute('aria-label', isOpen ? 'Close menu' : 'Open menu');
     menuIcon.classList.toggle('fa-bars', !isOpen);
     menuIcon.classList.toggle('fa-xmark', isOpen);
+
+    if (!isOpen && wasOpen) {
+        window.setTimeout(() => menuButton.classList.remove('is-closing'), 350);
+    }
 }
 
 if (menuButton && nav) {
@@ -56,8 +62,8 @@ document.querySelectorAll('.reveal-on-scroll').forEach((element, index) => {
     revealObserver.observe(element);
 });
 
-document.querySelectorAll('[data-counter]').forEach(counter => {
-    const target = Number(counter.dataset.counter || 0);
+function animateCounter(counter, target) {
+    const startValue = Number(counter.textContent || 0);
     const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
     if (reduceMotion) {
@@ -82,12 +88,14 @@ document.querySelectorAll('[data-counter]').forEach(counter => {
             : progress < 0.5
                 ? 16 * Math.pow(progress, 5)
                 : 1 - Math.pow(-2 * progress + 2, 6) / 2;
-        counter.textContent = Math.floor(easedProgress * target);
+        counter.textContent = Math.floor(startValue + easedProgress * (target - startValue));
         if (elapsed < duration) requestAnimationFrame(animateCounter);
     };
 
     requestAnimationFrame(animateCounter);
-});
+}
+
+document.querySelectorAll('[data-counter]').forEach(counter => animateCounter(counter, Number(counter.dataset.counter || 0)));
 
 const cursorGlow = document.querySelector('.cursor-glow') || document.body.appendChild(Object.assign(document.createElement('div'), {
     className: 'cursor-glow',
@@ -95,7 +103,92 @@ const cursorGlow = document.querySelector('.cursor-glow') || document.body.appen
 }));
 
 if (cursorGlow && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    const touchTrail = document.body.appendChild(Object.assign(document.createElement('canvas'), {
+        className: 'touch-trail-canvas',
+        ariaHidden: 'true'
+    }));
+    const trailContext = touchTrail.getContext('2d');
+    let trailPoint = null;
+    let trailFadeTimer;
+
+    const resizeTouchTrail = () => {
+        const scale = window.devicePixelRatio || 1;
+        touchTrail.width = Math.floor(window.innerWidth * scale);
+        touchTrail.height = Math.floor(window.innerHeight * scale);
+        touchTrail.style.width = `${window.innerWidth}px`;
+        touchTrail.style.height = `${window.innerHeight}px`;
+        trailContext.setTransform(scale, 0, 0, scale, 0, 0);
+    };
+    const clearTouchTrail = () => trailContext.clearRect(0, 0, window.innerWidth, window.innerHeight);
+    const startTouchTrail = (x, y) => {
+        window.clearTimeout(trailFadeTimer);
+        touchTrail.classList.remove('is-fading');
+        clearTouchTrail();
+        trailPoint = { x, y };
+        drawTouchBloom(x, y);
+    };
+    const drawTouchBloom = (x, y) => {
+        const radius = 110;
+        const bloom = trailContext.createRadialGradient(x, y, 0, x, y, radius);
+        bloom.addColorStop(0, 'rgba(225, 6, 27, 0.1)');
+        bloom.addColorStop(0.42, 'rgba(225, 6, 27, 0.04)');
+        bloom.addColorStop(1, 'rgba(225, 6, 27, 0)');
+        trailContext.beginPath();
+        trailContext.arc(x, y, radius, 0, Math.PI * 2);
+        trailContext.fillStyle = bloom;
+        trailContext.fill();
+    };
+    const extendTouchTrail = (x, y) => {
+        if (!trailPoint) return;
+        const distance = Math.hypot(x - trailPoint.x, y - trailPoint.y);
+        const steps = Math.max(1, Math.ceil(distance / 28));
+        for (let step = 1; step <= steps; step += 1) {
+            const progress = step / steps;
+            drawTouchBloom(
+                trailPoint.x + (x - trailPoint.x) * progress,
+                trailPoint.y + (y - trailPoint.y) * progress
+            );
+        }
+        trailPoint = { x, y };
+    };
+    const finishTouchTrail = () => {
+        trailPoint = null;
+        touchTrail.classList.add('is-fading');
+        trailFadeTimer = window.setTimeout(() => {
+            clearTouchTrail();
+            touchTrail.classList.remove('is-fading');
+        }, 500);
+    };
+    const firstTouch = event => event.touches[0];
+    const handleTouchStart = event => {
+        const touch = firstTouch(event);
+        if (!touch) return;
+        cursorGlow.classList.add('is-touching');
+        cursorGlow.style.setProperty('--cursor-x', `${touch.clientX}px`);
+        cursorGlow.style.setProperty('--cursor-y', `${touch.clientY}px`);
+        startTouchTrail(touch.clientX, touch.clientY);
+    };
+    const handleTouchMove = event => {
+        const touch = firstTouch(event);
+        if (!touch || !trailPoint) return;
+        cursorGlow.classList.add('is-touching');
+        cursorGlow.style.setProperty('--cursor-x', `${touch.clientX}px`);
+        cursorGlow.style.setProperty('--cursor-y', `${touch.clientY}px`);
+        extendTouchTrail(touch.clientX, touch.clientY);
+    };
+    const handleTouchEnd = () => {
+        cursorGlow.classList.remove('is-touching');
+        finishTouchTrail();
+    };
+
+    resizeTouchTrail();
+    window.addEventListener('resize', resizeTouchTrail, { passive: true });
+    window.addEventListener('touchstart', handleTouchStart, { passive: true });
+    window.addEventListener('touchmove', handleTouchMove, { passive: true });
+    window.addEventListener('touchend', handleTouchEnd, { passive: true });
+    window.addEventListener('touchcancel', handleTouchEnd, { passive: true });
     window.addEventListener('pointermove', event => {
+        if (event.pointerType === 'touch') return;
         cursorGlow.style.setProperty('--cursor-x', `${event.clientX}px`);
         cursorGlow.style.setProperty('--cursor-y', `${event.clientY}px`);
     }, { passive: true });
@@ -142,7 +235,12 @@ const portalSignout = document.getElementById('portal-signout');
 const portalSigninCard = portalForm?.closest('.portal-card');
 let currentSession = null;
 const apiRequest = async (url, options = {}) => {
-    const response = await fetch(url, { credentials: 'same-origin', headers: { 'Content-Type': 'application/json', ...(options.headers || {}) }, ...options });
+    let response;
+    try {
+        response = await fetch(url, { credentials: 'same-origin', headers: { 'Content-Type': 'application/json', ...(options.headers || {}) }, ...options });
+    } catch {
+        throw new Error('The site connection is unavailable. Start the local server and try again.');
+    }
     const body = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(body.error || 'The request could not be completed.');
     return body;
@@ -151,10 +249,13 @@ const isSignedIn = () => Boolean(currentSession);
 const normalizeEmail = email => String(email || '').trim().toLowerCase();
 const getAccount = () => currentSession;
 let projectCache = [];
+let projectLoadFailed = false;
+const ADMIN_CACHE_TTL = 5 * 60 * 1000;
 const getAdmins = () => {
     try {
-        const admins = JSON.parse(localStorage.getItem('crimsonAdmins') || '[]');
-        return Array.isArray(admins) ? admins : [];
+        const stored = JSON.parse(localStorage.getItem('crimsonAdmins') || '{}');
+        if (!stored || !Array.isArray(stored.admins) || Date.now() - Number(stored.savedAt) > ADMIN_CACHE_TTL) return [];
+        return stored.admins;
     } catch {
         return [];
     }
@@ -252,7 +353,7 @@ if (portalSignupForm) {
         event.preventDefault();
         portalSignupStatus.textContent = 'Creating your account...';
         try {
-            const result = await apiRequest('/api/auth/signup', { method: 'POST', body: JSON.stringify({ firstName: document.getElementById('portal-first-name')?.value.trim(), lastName: document.getElementById('portal-last-name')?.value.trim(), email: document.getElementById('portal-signup-email')?.value.trim(), password: document.getElementById('portal-signup-password')?.value }) });
+            const result = await apiRequest('/api/auth/signup', { method: 'POST', body: JSON.stringify({ firstName: document.getElementById('portal-first-name')?.value.trim(), lastName: document.getElementById('portal-last-name')?.value.trim(), email: document.getElementById('portal-signup-email')?.value.trim(), password: document.getElementById('portal-signup-password')?.value, newsletterOptIn: Boolean(document.getElementById('portal-newsletter-opt-in')?.checked) }) });
             if (!result.account) {
                 portalSignupForm.reset();
                 portalSignupStatus.textContent = result.message || 'Check your email to verify the account before signing in.';
@@ -430,6 +531,7 @@ if (commentViewMore) {
 renderComments();
 
 async function loadFeedback() {
+    if (!document.getElementById('project-detail')) return;
     const requestId = ++feedbackLoadSequence;
     const accountEmail = normalizeEmail(currentSession?.email);
     try {
@@ -571,16 +673,30 @@ const projectCardTemplate = document.getElementById('project-card-template');
 let workCards = [...document.querySelectorAll('[data-work-card]')];
 function getProjects() { return projectCache; }
 
+function updateWebsiteCount(count) {
+    document.querySelectorAll('[data-counter-key="websites"]').forEach(counter => {
+        const websiteCount = Math.max(0, Number(count) || 0);
+        counter.dataset.counter = String(websiteCount);
+        animateCounter(counter, websiteCount);
+    });
+}
+
 async function loadProjectsFromServer() {
     try {
         const result = await apiRequest('/api/projects');
         projectCache = Array.isArray(result.projects) ? result.projects : [];
+        projectLoadFailed = false;
+        updateWebsiteCount(result.websiteCount ?? projectCache.filter(project => project.projectType !== 'game').length);
         renderAdminProjects();
         updateProjectGridLayout();
         bindProjectCards();
         updateAdminProjectCapacity();
     } catch {
-        // Keep the cached projects visible if the site is opened without its server.
+        projectLoadFailed = true;
+        if (workEmpty) {
+            workEmpty.textContent = 'Projects are temporarily unavailable. Start the site server and refresh to load the portfolio.';
+            workEmpty.hidden = workCards.length !== 0;
+        }
     }
 }
 
@@ -600,7 +716,8 @@ function renderAdminProjects() {
 
         card.querySelector('[data-project-name]').textContent = project.name;
         card.querySelector('[data-project-description]').textContent = project.description;
-        const badges = String(project.badges || '').split(',').map(badge => badge.trim()).filter(Boolean).slice(0, 3);
+        const typeLabel = project.projectType === 'game' ? 'Game' : 'Website';
+        const badges = [typeLabel, ...String(project.badges || '').split(',').map(badge => badge.trim()).filter(Boolean)].slice(0, 3);
         card.querySelectorAll('[data-project-badge]').forEach((badgeElement, badgeIndex) => {
             const badge = badges[badgeIndex];
             badgeElement.textContent = badge || '';
@@ -627,7 +744,12 @@ function renderAdminProjects() {
     });
     workCards = [...document.querySelectorAll('[data-work-card]')];
     if (workResults) workResults.textContent = `${workCards.length} project${workCards.length === 1 ? '' : 's'}`;
-    if (workEmpty) workEmpty.hidden = workCards.length !== 0;
+    if (workEmpty) {
+        workEmpty.textContent = projectLoadFailed
+            ? 'Projects are temporarily unavailable. Start the site server and refresh to load the portfolio.'
+            : 'No projects have been published yet. Check back soon.';
+        workEmpty.hidden = workCards.length !== 0;
+    }
 }
 
 renderAdminProjects();
@@ -712,6 +834,20 @@ const adminProjectSubmit = document.getElementById('admin-project-submit');
 const customProjectSelect = document.getElementById('admin-project-select');
 const customProjectSelectTrigger = customProjectSelect?.querySelector('.custom-select-trigger');
 const customProjectSelectMenu = customProjectSelect?.querySelector('.custom-select-menu');
+const projectTypeButtons = [...document.querySelectorAll('[data-project-type]')];
+let selectedProjectType = 'website';
+
+function setProjectType(type) {
+    selectedProjectType = type === 'game' ? 'game' : 'website';
+    projectTypeButtons.forEach(button => {
+        const isSelected = button.dataset.projectType === selectedProjectType;
+        button.classList.toggle('is-active', isSelected);
+        button.setAttribute('aria-selected', String(isSelected));
+    });
+}
+
+projectTypeButtons.forEach(button => button.addEventListener('click', () => setProjectType(button.dataset.projectType)));
+setProjectType('website');
 
 function syncCustomProjectSelect() {
     if (!adminProjectExisting || !customProjectSelect) return;
@@ -795,12 +931,14 @@ function loadAdminProject(projectIndex) {
     document.getElementById('admin-project-focus').value = project.focus || whatBuilt.focus || '';
     document.getElementById('admin-project-build-title').value = project.buildTitle || whatBuilt.title || whatBuilt.buildTitle || '';
     document.getElementById('admin-project-build-description').value = project.buildDescription || whatBuilt.description || whatBuilt.buildDescription || '';
+    setProjectType(project.projectType || project.type || 'website');
     adminProjectSubmit.textContent = 'Save project changes';
 }
 
 if (adminProjectExisting) adminProjectExisting.addEventListener('change', () => {
     if (adminProjectExisting.value === '') {
         adminProjectForm?.reset();
+        setProjectType('website');
         syncCustomProjectSelect();
         if (adminProjectSubmit) adminProjectSubmit.textContent = 'Add project';
         return;
@@ -832,7 +970,8 @@ if (adminProjectForm) {
             structure: document.getElementById('admin-project-structure')?.value.trim(),
             focus: document.getElementById('admin-project-focus')?.value.trim(),
             buildTitle: document.getElementById('admin-project-build-title')?.value.trim(),
-            buildDescription: document.getElementById('admin-project-build-description')?.value.trim()
+            buildDescription: document.getElementById('admin-project-build-description')?.value.trim(),
+            projectType: selectedProjectType
         };
         const isEditing = adminProjectExisting?.value !== '';
         const selectedIndex = Number(adminProjectExisting?.value);
@@ -841,6 +980,7 @@ if (adminProjectForm) {
             const endpoint = existingProject ? `/api/projects/${encodeURIComponent(existingProject.id)}` : '/api/projects';
             await apiRequest(endpoint, { method: existingProject ? 'PUT' : 'POST', body: JSON.stringify(existingProject ? { ...project, id: existingProject.id } : project) });
             adminProjectForm.reset();
+            setProjectType('website');
             syncCustomProjectSelect();
             if (status) status.textContent = isEditing ? 'Project changes saved.' : 'Project added to the Projects page.';
             if (adminProjectSubmit) adminProjectSubmit.textContent = 'Add project';
@@ -865,13 +1005,15 @@ function renderAdminManagement() {
         return;
     }
 
+    if (adminManagementForm) adminManagementForm.hidden = false;
+
     const admins = adminCache.length ? adminCache : getAdmins();
     adminList.replaceChildren();
     admins.forEach(admin => {
         const item = document.createElement('div');
         item.className = 'admin-list-item';
         const adminEmail = normalizeEmail(admin.email || (admin.accountId === getAccount()?.id ? getAccount()?.email : ''));
-        const isOwner = Boolean(admin.isOwner || adminEmail === normalizeEmail(getAccount()?.email));
+        const isOwner = Boolean(admin.isOwner);
         const identity = document.createElement('div');
         identity.className = 'admin-list-identity';
         const name = document.createElement('strong');
@@ -901,8 +1043,10 @@ async function loadAdminManagement() {
     try {
         const result = await apiRequest('/api/admins');
         adminCache = Array.isArray(result.admins) ? result.admins : [];
-        localStorage.setItem('crimsonAdmins', JSON.stringify(adminCache));
-    } catch { /* The page still shows the cached roster. */ }
+        localStorage.setItem('crimsonAdmins', JSON.stringify({ admins: adminCache, savedAt: Date.now() }));
+    } catch (error) {
+        if (adminManagementStatus) adminManagementStatus.textContent = `${error.message} Showing the last recent roster, if available.`;
+    }
     renderAdminManagement();
 }
 
@@ -1236,5 +1380,49 @@ if (adminManagementForm) {
             if (adminManagementStatus) adminManagementStatus.textContent = 'Administrator added.';
             loadAdminManagement();
         } catch (error) { if (adminManagementStatus) adminManagementStatus.textContent = error.message; }
+    });
+}
+
+const newsletterForm = document.getElementById('newsletter-form');
+if (newsletterForm) {
+    const newsletterSubject = document.getElementById('newsletter-subject');
+    const newsletterMessage = document.getElementById('newsletter-message');
+    const newsletterStatus = document.getElementById('newsletter-status');
+    const newsletterSend = document.getElementById('newsletter-send');
+    let savedDraft = null;
+    try { savedDraft = JSON.parse(localStorage.getItem('crimsonNewsletterDraft') || 'null'); } catch { savedDraft = null; }
+    if (savedDraft) {
+        if (newsletterSubject) newsletterSubject.value = savedDraft.subject || '';
+        if (newsletterMessage) newsletterMessage.value = savedDraft.message || '';
+    }
+    newsletterForm.addEventListener('submit', async event => {
+        event.preventDefault();
+        const draft = {
+            subject: newsletterSubject?.value.trim() || '',
+            message: newsletterMessage?.value.trim() || '',
+            savedAt: Date.now()
+        };
+        localStorage.setItem('crimsonNewsletterDraft', JSON.stringify(draft));
+        if (!draft.subject || !draft.message) {
+            if (newsletterStatus) newsletterStatus.textContent = 'Add a subject and message before sending.';
+            return;
+        }
+        if (!window.confirm('Send this newsletter to all opted-in subscribers?')) return;
+        if (newsletterSend) {
+            newsletterSend.disabled = true;
+            newsletterSend.textContent = 'Sending newsletter...';
+        }
+        if (newsletterStatus) newsletterStatus.textContent = 'Sending to opted-in subscribers...';
+        try {
+            const result = await apiRequest('/api/newsletter', { method: 'POST', body: JSON.stringify(draft) });
+            if (newsletterStatus) newsletterStatus.textContent = `Newsletter sent to ${result.sent} subscriber${result.sent === 1 ? '' : 's'}${result.failed ? `; ${result.failed} failed` : ''}.`;
+        } catch (error) {
+            if (newsletterStatus) newsletterStatus.textContent = error.message;
+        } finally {
+            if (newsletterSend) {
+                newsletterSend.disabled = false;
+                newsletterSend.textContent = 'Send newsletter';
+            }
+        }
     });
 }

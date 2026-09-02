@@ -104,7 +104,8 @@ textarea {
     box-shadow: var(--shadow);
     position: sticky;
     top: 16px;
-    z-index: 30;
+    z-index: 100;
+    isolation: isolate;
     transition: transform 0.25s ease, border-color 0.25s ease, background 0.25s ease;
 }
 
@@ -151,12 +152,17 @@ textarea {
     display: flex;
     align-items: center;
     gap: 12px;
+    position: relative;
+    z-index: 101;
 }
 
 .site-nav a {
     color: var(--muted);
     padding: 10px 14px;
     border-radius: 999px;
+    position: relative;
+    z-index: 1;
+    pointer-events: auto;
     transition: background 0.2s ease, color 0.2s ease, transform 0.2s ease;
 }
 
@@ -186,9 +192,22 @@ textarea {
     animation: menu-spin 0.35s ease both;
 }
 
+.menu-toggle.is-closing #bar {
+    animation: menu-close 0.35s ease both;
+}
+
 @keyframes menu-spin {
     from {
         transform: rotate(-180deg);
+    }
+    to {
+        transform: rotate(0deg);
+    }
+}
+
+@keyframes menu-close {
+    from {
+        transform: rotate(180deg);
     }
     to {
         transform: rotate(0deg);
@@ -1383,6 +1402,23 @@ body > *:not(.cursor-glow) {
     z-index: 1;
 }
 
+body > .site-header {
+    z-index: 100;
+}
+
+body > .touch-trail-canvas {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    opacity: 0.15;
+    transition: opacity 0.45s ease;
+}
+
+body > .touch-trail-canvas.is-fading {
+    opacity: 0;
+}
+
 .guidance-tabs {
     display: flex;
     flex-wrap: wrap;
@@ -1473,6 +1509,24 @@ body > *:not(.cursor-glow) {
 
 .portal-form .btn {
     margin-top: 4px;
+}
+
+.checkbox-field {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    color: var(--muted);
+    cursor: pointer;
+    font-size: 0.9rem;
+    line-height: 1.5;
+}
+
+.checkbox-field input {
+    width: 18px;
+    height: 18px;
+    flex: 0 0 auto;
+    margin-top: 2px;
+    accent-color: var(--red);
 }
 
 .portal-signup-card[hidden] {
@@ -1703,6 +1757,43 @@ body > *:not(.cursor-glow) {
     display: grid;
     gap: 14px;
     margin-top: 18px;
+}
+
+.field-label {
+    display: block;
+    margin-bottom: 8px;
+    color: var(--muted);
+    font-size: 0.9rem;
+    font-weight: 700;
+}
+
+.project-type-tabs {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+}
+
+.project-type-tab {
+    min-height: 46px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.03);
+    color: var(--muted);
+    cursor: pointer;
+    transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease, transform 0.2s ease;
+}
+
+.project-type-tab:hover,
+.project-type-tab:focus-visible,
+.project-type-tab.is-active {
+    border-color: rgba(225, 6, 27, 0.65);
+    background: rgba(225, 6, 27, 0.14);
+    color: var(--text);
+}
+
+.project-type-tab:focus-visible {
+    outline: 2px solid var(--red-2);
+    outline-offset: 2px;
 }
 
 .admin-detail-fields {
@@ -2801,12 +2892,14 @@ textarea:focus {
         pointer-events: none;
         transform: translateY(-10px);
         transition: opacity 0.2s ease, transform 0.2s ease;
+        z-index: 101;
     }
 
     .site-nav.active {
         opacity: 1;
         pointer-events: auto;
         transform: translateY(0);
+        z-index: 101;
     }
 
     .site-nav a {
@@ -2815,6 +2908,7 @@ textarea:focus {
 
     .hero {
         padding-top: 46px;
+        gap: 18px;
     }
 
     .project-detail-grid {
@@ -2831,7 +2925,7 @@ textarea:focus {
     }
 
     .hero-panel {
-        min-height: 420px;
+        min-height: 0;
     }
 
     .mini-grid,
@@ -2862,7 +2956,19 @@ textarea:focus {
     }
 
     .cursor-glow {
-        display: none;
+        display: block;
+        width: 420px;
+        height: 420px;
+        opacity: 0;
+        transition: transform 0.18s ease-out, opacity 0.28s ease;
+    }
+
+    .cursor-glow.is-touching {
+        opacity: 0.15;
+    }
+
+    body > .touch-trail-canvas {
+        display: block;
     }
 
     .work-toolbar span {
@@ -2907,6 +3013,16 @@ textarea:focus {
 
     .hero h1 {
         max-width: 100%;
+        font-size: clamp(2.7rem, 13vw, 4.5rem);
+    }
+
+    .hero p.lead {
+        font-size: 0.98rem;
+        line-height: 1.65;
+    }
+
+    .hero-actions .btn {
+        flex: 1 1 100%;
     }
 
     .panel-stack {
@@ -2915,7 +3031,7 @@ textarea:focus {
 
     .hero-panel {
         padding: 18px;
-        min-height: 380px;
+        min-height: 0;
     }
 
     .card,
