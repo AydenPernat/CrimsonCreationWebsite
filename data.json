@@ -8,39 +8,15 @@
       "verifiedAt": "2026-08-31T23:24:15.369Z",
       "passwordSalt": "efdefd31ff3e7121232967a6e0a7b5a0",
       "passwordHash": "c89af62ba3c44bf6b4fcdb9d8e037d0c68398817f78d470a956c31e06be9eb435e059a72ae308370a2457510138541ecc45b4d9f990399c3e84dbb0670170824"
-    },
-    {
-      "id": "9a4748ea7ea0f00db64a8d7e",
-      "firstName": "Ayden",
-      "lastName": "Pernat",
-      "email": "aydenpernat@icloud.com",
-      "newsletterOptIn": true,
-      "verifiedAt": null,
-      "verificationTokenHash": "6a746e45f523833453fea798024b7049281f2965bb6465242f3f1e9296e619ef",
-      "verificationExpiresAt": 1788406012175,
-      "passwordSalt": "5d75a9daa5f82e7f3174a414acf6453d",
-      "passwordHash": "8b3176089750d0222026deb08bd6a4f49c811b7e075f431190f1ded805a724ee0ee9055989ba009a713fa2ac3296bdae265755d24be772b73d96272c8ea7b029"
-    },
-    {
-      "id": "4b03e11b0a686c2a1c334444",
-      "firstName": "Ayden",
-      "lastName": "Pernat",
-      "email": "pernaayd000@stu.oasd.org",
-      "newsletterOptIn": true,
-      "verifiedAt": null,
-      "verificationTokenHash": "dacdf43757fb6834a447f51e670023bb6413d1d907009705cb08f00621c5db92",
-      "verificationExpiresAt": 1788406058079,
-      "passwordSalt": "c030639a9665ce98435c07769a8f82d6",
-      "passwordHash": "bcdcc8bd40b4dd2356dbdaa0504efe5378271425944705f7b03d43670dab03e2753812f9555475b24bdf5f0e67355c51a414197b1fa6947e14cba76cb409ac48"
     }
   ],
-  "projects": [],
   "admins": [
     {
       "accountId": "3442857e4ec85aab78866af2",
       "name": "Ayden Pernat"
     }
   ],
+  "projects": [],
   "comments": {
     "project-1788224242356-322fe59f": [
       {
