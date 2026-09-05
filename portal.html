@@ -284,6 +284,44 @@
                                 </form>
                             </div>
                         </details>
+                        <details class="admin-tool-section">
+                            <summary>
+                                <span>
+                                    <strong>Newsletter subscribers</strong>
+                                    <small>Search and remove newsletter signups</small>
+                                </span>
+                                <i class="fa-solid fa-chevron-down" aria-hidden="true"></i>
+                            </summary>
+                            <div class="admin-tool-content">
+                                <p>Find every verified account that is currently opted in to the newsletter and remove them from the mailing list.</p>
+                                <div class="field request-search-field">
+                                    <label for="newsletter-subscriber-search">Search subscribers</label>
+                                    <input id="newsletter-subscriber-search" type="search" autocomplete="off" placeholder="Search by name or email">
+                                </div>
+                                <div class="admin-list" id="newsletter-subscriber-list"></div>
+                                <p class="admin-access-note" id="newsletter-subscriber-empty">No newsletter subscribers yet.</p>
+                                <p class="portal-status" id="newsletter-subscriber-status" aria-live="polite"></p>
+                            </div>
+                        </details>
+                        <details class="admin-tool-section">
+                            <summary>
+                                <span>
+                                    <strong>Account data</strong>
+                                    <small>Search signed-up users and delete their data</small>
+                                </span>
+                                <i class="fa-solid fa-chevron-down" aria-hidden="true"></i>
+                            </summary>
+                            <div class="admin-tool-content">
+                                <p>Review everyone with a signed-in account, search by name or email, and delete their stored data when needed.</p>
+                                <div class="field request-search-field">
+                                    <label for="account-management-search">Search accounts</label>
+                                    <input id="account-management-search" type="search" autocomplete="off" placeholder="Search by name or email">
+                                </div>
+                                <div class="admin-list" id="account-management-list"></div>
+                                <p class="admin-access-note" id="account-management-empty">No accounts found.</p>
+                                <p class="portal-status" id="account-management-status" aria-live="polite"></p>
+                            </div>
+                        </details>
                         <details class="admin-tool-section admin-requests-tool">
                             <summary>
                                 <span>

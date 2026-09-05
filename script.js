@@ -159,30 +159,47 @@ if (cursorGlow && !window.matchMedia('(prefers-reduced-motion: reduce)').matches
             touchTrail.classList.remove('is-fading');
         }, 500);
     };
-    const firstTouch = event => event.touches[0];
-    const handleTouchStart = event => {
-        const touch = firstTouch(event);
-        if (!touch) return;
+    const getPoint = event => event?.touches?.[0] || event?.changedTouches?.[0] || event;
+    const showTrailAtPoint = (x, y) => {
         cursorGlow.classList.add('is-touching');
-        cursorGlow.style.setProperty('--cursor-x', `${touch.clientX}px`);
-        cursorGlow.style.setProperty('--cursor-y', `${touch.clientY}px`);
-        startTouchTrail(touch.clientX, touch.clientY);
+        cursorGlow.style.setProperty('--cursor-x', `${x}px`);
+        cursorGlow.style.setProperty('--cursor-y', `${y}px`);
+        if (!trailPoint) startTouchTrail(x, y);
+        else extendTouchTrail(x, y);
+    };
+    const handleTouchStart = event => {
+        const touch = getPoint(event);
+        if (!touch) return;
+        showTrailAtPoint(touch.clientX, touch.clientY);
     };
     const handleTouchMove = event => {
-        const touch = firstTouch(event);
-        if (!touch || !trailPoint) return;
-        cursorGlow.classList.add('is-touching');
-        cursorGlow.style.setProperty('--cursor-x', `${touch.clientX}px`);
-        cursorGlow.style.setProperty('--cursor-y', `${touch.clientY}px`);
-        extendTouchTrail(touch.clientX, touch.clientY);
+        const touch = getPoint(event);
+        if (!touch) return;
+        showTrailAtPoint(touch.clientX, touch.clientY);
     };
     const handleTouchEnd = () => {
         cursorGlow.classList.remove('is-touching');
         finishTouchTrail();
     };
+    const handlePointerDown = event => {
+        if (event.pointerType !== 'touch') return;
+        showTrailAtPoint(event.clientX, event.clientY);
+    };
+    const handlePointerMove = event => {
+        if (event.pointerType !== 'touch') return;
+        showTrailAtPoint(event.clientX, event.clientY);
+    };
+    const handlePointerEnd = event => {
+        if (event.pointerType !== 'touch') return;
+        handleTouchEnd();
+    };
 
     resizeTouchTrail();
     window.addEventListener('resize', resizeTouchTrail, { passive: true });
+    window.addEventListener('pointerdown', handlePointerDown, { passive: true });
+    window.addEventListener('pointermove', handlePointerMove, { passive: true });
+    window.addEventListener('pointerup', handlePointerEnd, { passive: true });
+    window.addEventListener('pointercancel', handlePointerEnd, { passive: true });
     window.addEventListener('touchstart', handleTouchStart, { passive: true });
     window.addEventListener('touchmove', handleTouchMove, { passive: true });
     window.addEventListener('touchend', handleTouchEnd, { passive: true });
@@ -286,6 +303,8 @@ function showPortalPreview() {
     updateProjectGridLayout();
     bindProjectCards();
     loadAdminManagement();
+    loadNewsletterSubscribers();
+    loadAccountManagement();
     loadContactRequests();
     loadWorkspaceUpdates();
 }
@@ -1067,6 +1086,159 @@ if (adminList) {
     });
 }
 
+const newsletterSubscriberList = document.getElementById('newsletter-subscriber-list');
+const newsletterSubscriberSearch = document.getElementById('newsletter-subscriber-search');
+const newsletterSubscriberEmpty = document.getElementById('newsletter-subscriber-empty');
+const newsletterSubscriberStatus = document.getElementById('newsletter-subscriber-status');
+let newsletterSubscriberCache = [];
+
+function renderNewsletterSubscribers() {
+    if (!newsletterSubscriberList) return;
+    const query = requestValue(newsletterSubscriberSearch?.value).toLowerCase();
+    if (!currentAccountIsAdmin()) {
+        newsletterSubscriberList.innerHTML = '<p class="admin-access-note">This page is only available to administrators.</p>';
+        if (newsletterSubscriberEmpty) newsletterSubscriberEmpty.hidden = true;
+        return;
+    }
+
+    const subscribers = newsletterSubscriberCache.filter(subscriber => `${subscriber.name} ${subscriber.email}`.toLowerCase().includes(query));
+    newsletterSubscriberList.replaceChildren();
+    subscribers.forEach(subscriber => {
+        const item = document.createElement('div');
+        item.className = 'admin-list-item';
+        const identity = document.createElement('div');
+        identity.className = 'admin-list-identity';
+        const name = document.createElement('strong');
+        name.textContent = subscriber.name || 'Subscriber';
+        const badge = document.createElement('span');
+        badge.className = 'admin-role';
+        badge.textContent = 'Newsletter';
+        const email = document.createElement('span');
+        email.textContent = subscriber.email || 'Email unavailable';
+        identity.append(name, badge);
+        item.append(identity, email);
+        const deleteButton = document.createElement('button');
+        deleteButton.className = 'admin-delete';
+        deleteButton.type = 'button';
+        deleteButton.dataset.subscriberId = subscriber.accountId;
+        deleteButton.textContent = 'Delete';
+        item.append(deleteButton);
+        newsletterSubscriberList.append(item);
+    });
+
+    if (newsletterSubscriberEmpty) {
+        newsletterSubscriberEmpty.hidden = subscribers.length !== 0;
+        newsletterSubscriberEmpty.textContent = query ? 'No matching subscribers found.' : 'No newsletter subscribers yet.';
+    }
+}
+
+async function loadNewsletterSubscribers() {
+    if (!newsletterSubscriberList || !currentAccountIsAdmin()) { renderNewsletterSubscribers(); return; }
+    try {
+        const result = await apiRequest('/api/newsletter/subscribers');
+        newsletterSubscriberCache = Array.isArray(result.subscribers) ? result.subscribers : [];
+    } catch (error) {
+        if (newsletterSubscriberStatus) newsletterSubscriberStatus.textContent = `${error.message} Showing the last recent subscriber list, if available.`;
+    }
+    renderNewsletterSubscribers();
+}
+
+if (newsletterSubscriberList) {
+    newsletterSubscriberList.addEventListener('click', async event => {
+        const deleteButton = event.target.closest('[data-subscriber-id]');
+        if (!deleteButton || !currentAccountIsAdmin()) return;
+        if (!window.confirm('Remove this person from the newsletter list?')) return;
+        try {
+            await apiRequest(`/api/newsletter/subscribers/${encodeURIComponent(deleteButton.dataset.subscriberId)}`, { method: 'DELETE' });
+            if (newsletterSubscriberStatus) newsletterSubscriberStatus.textContent = 'Subscriber removed from the newsletter list.';
+            await loadNewsletterSubscribers();
+        } catch (error) {
+            if (newsletterSubscriberStatus) newsletterSubscriberStatus.textContent = error.message;
+        }
+    });
+}
+
+const accountManagementList = document.getElementById('account-management-list');
+const accountManagementSearch = document.getElementById('account-management-search');
+const accountManagementEmpty = document.getElementById('account-management-empty');
+const accountManagementStatus = document.getElementById('account-management-status');
+let accountManagementCache = [];
+
+function renderAccountManagement() {
+    if (!accountManagementList) return;
+    const query = requestValue(accountManagementSearch?.value).toLowerCase();
+    if (!currentAccountIsAdmin()) {
+        accountManagementList.innerHTML = '<p class="admin-access-note">This page is only available to administrators.</p>';
+        if (accountManagementEmpty) accountManagementEmpty.hidden = true;
+        return;
+    }
+
+    const accounts = accountManagementCache.filter(account => `${account.name} ${account.email}`.toLowerCase().includes(query));
+    accountManagementList.replaceChildren();
+    accounts.forEach(account => {
+        const item = document.createElement('div');
+        item.className = 'admin-list-item';
+        const identity = document.createElement('div');
+        identity.className = 'admin-list-identity';
+        const name = document.createElement('strong');
+        name.textContent = account.name || 'Account';
+        const badge = document.createElement('span');
+        badge.className = 'admin-role';
+        badge.textContent = account.verifiedAt ? 'Verified' : 'Pending';
+        const email = document.createElement('span');
+        email.textContent = account.email || 'Email unavailable';
+        identity.append(name, badge);
+        item.append(identity, email);
+        const deleteButton = document.createElement('button');
+        deleteButton.className = 'admin-delete';
+        deleteButton.type = 'button';
+        deleteButton.dataset.accountId = account.accountId;
+        deleteButton.textContent = 'Delete';
+        item.append(deleteButton);
+        accountManagementList.append(item);
+    });
+
+    if (accountManagementEmpty) {
+        accountManagementEmpty.hidden = accounts.length !== 0;
+        accountManagementEmpty.textContent = query ? 'No matching accounts found.' : 'No accounts found.';
+    }
+}
+
+async function loadAccountManagement() {
+    if (!accountManagementList || !currentAccountIsAdmin()) { renderAccountManagement(); return; }
+    try {
+        const result = await apiRequest('/api/accounts');
+        accountManagementCache = Array.isArray(result.accounts) ? result.accounts : [];
+    } catch (error) {
+        if (accountManagementStatus) accountManagementStatus.textContent = `${error.message} Showing the last recent account list, if available.`;
+    }
+    renderAccountManagement();
+}
+
+if (accountManagementList) {
+    accountManagementList.addEventListener('click', async event => {
+        const deleteButton = event.target.closest('[data-account-id]');
+        if (!deleteButton || !currentAccountIsAdmin()) return;
+        if (!window.confirm('Delete this account and all of its data?')) return;
+        try {
+            const target = accountManagementCache.find(account => account.accountId === deleteButton.dataset.accountId);
+            await apiRequest(`/api/accounts/${encodeURIComponent(deleteButton.dataset.accountId)}`, { method: 'DELETE' });
+            if (target && normalizeEmail(target.email) === normalizeEmail(getAccount()?.email)) {
+                await apiRequest('/api/auth/signout', { method: 'POST' }).catch(() => {});
+                currentSession = null;
+                if (portalPreview) portalPreview.hidden = true;
+                if (portalLayout) portalLayout.classList.add('signed-out');
+                showSigninPanel();
+            }
+            if (accountManagementStatus) accountManagementStatus.textContent = 'Account data deleted.';
+            await loadAccountManagement();
+            await loadNewsletterSubscribers();
+        } catch (error) {
+            if (accountManagementStatus) accountManagementStatus.textContent = error.message;
+        }
+    });
+}
+
 const requestList = document.getElementById('request-list');
 const requestSearch = document.getElementById('request-search');
 const requestEmpty = document.getElementById('request-empty');
@@ -1422,6 +1594,40 @@ if (newsletterForm) {
             if (newsletterSend) {
                 newsletterSend.disabled = false;
                 newsletterSend.textContent = 'Send newsletter';
+            }
+        }
+    });
+}
+
+const unsubscribeForm = document.getElementById('unsubscribe-form');
+if (unsubscribeForm) {
+    const unsubscribeStatus = document.getElementById('unsubscribe-status');
+    const unsubscribeButton = document.getElementById('unsubscribe-submit');
+    unsubscribeForm.addEventListener('submit', async event => {
+        event.preventDefault();
+        if (unsubscribeButton) {
+            unsubscribeButton.disabled = true;
+            unsubscribeButton.textContent = 'Removing subscription...';
+        }
+        if (unsubscribeStatus) unsubscribeStatus.textContent = 'Signing you in so we can remove you from the newsletter...';
+        try {
+            const result = await apiRequest('/api/auth/signin', {
+                method: 'POST',
+                body: JSON.stringify({
+                    email: document.getElementById('unsubscribe-email')?.value,
+                    password: document.getElementById('unsubscribe-password')?.value
+                })
+            });
+            currentSession = result.account;
+            await apiRequest('/api/newsletter/unsubscribe', { method: 'POST' });
+            if (unsubscribeStatus) unsubscribeStatus.textContent = 'You have been removed from the newsletter list.';
+            unsubscribeForm.reset();
+        } catch (error) {
+            if (unsubscribeStatus) unsubscribeStatus.textContent = error.message;
+        } finally {
+            if (unsubscribeButton) {
+                unsubscribeButton.disabled = false;
+                unsubscribeButton.textContent = 'Sign in and unsubscribe';
             }
         }
     });

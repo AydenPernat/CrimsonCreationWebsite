@@ -10,13 +10,13 @@
       "passwordHash": "c89af62ba3c44bf6b4fcdb9d8e037d0c68398817f78d470a956c31e06be9eb435e059a72ae308370a2457510138541ecc45b4d9f990399c3e84dbb0670170824"
     }
   ],
+  "projects": [],
   "admins": [
     {
       "accountId": "3442857e4ec85aab78866af2",
       "name": "Ayden Pernat"
     }
   ],
-  "projects": [],
   "comments": {
     "project-1788224242356-322fe59f": [
       {
@@ -73,5 +73,11 @@
     }
   },
   "contactRequests": [],
-  "sessions": []
+  "sessions": [
+    {
+      "accountId": "3442857e4ec85aab78866af2",
+      "tokenHash": "0bf22b436c1cf4301abceec5db404dbfd773a917951203d76e5b97ba13303473",
+      "expiresAt": 1789245120202
+    }
+  ]
 }

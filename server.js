@@ -32,6 +32,9 @@ app.use((_request, response, next) => {
 });
 app.use((request, response, next) => request.path === '/data.json' ? response.sendStatus(404) : next());
 app.use(express.static(__dirname));
+app.get(['/home', '/home.html'], (_request, response) => response.redirect('/'));
+app.get(['/portal', '/portal.html'], (_request, response) => response.sendFile(path.join(__dirname, 'portal.html')));
+app.get(['/unsubscribe', '/unsubscribe.html'], (_request, response) => response.sendFile(path.join(__dirname, 'unsubscribe.html')));
 
 function readData() {
     try {
@@ -83,6 +86,7 @@ async function sendVerificationEmail(email, token) {
 }
 
 async function sendNewsletterEmail(email, subject, message) {
+    const baseUrl = process.env.CRIMSON_PUBLIC_URL || `http://localhost:${port}`;
     const result = await fetch('https://api.resend.com/emails', {
         method: 'POST',
         headers: { Authorization: `Bearer ${process.env.RESEND_API_KEY}`, 'Content-Type': 'application/json' },
@@ -90,8 +94,8 @@ async function sendNewsletterEmail(email, subject, message) {
             from: process.env.RESEND_FROM_EMAIL,
             to: [email],
             subject,
-            text: `${message}\n\nYou received this because you opted in to Crimson Creations updates.`,
-            html: `<div>${escapeHtml(message).replace(/\r?\n/g, '<br>')}</div><p>You received this because you opted in to Crimson Creations updates.</p>`
+            text: `${message}\n\nYou received this because you opted in to Crimson Creations updates.\nUnsubscribe: ${baseUrl}/unsubscribe.html`,
+            html: `<div>${escapeHtml(message).replace(/\r?\n/g, '<br>')}</div><p>You received this because you opted in to Crimson Creations updates.</p><p><a href="${baseUrl}/unsubscribe.html">Unsubscribe</a></p>`
         })
     });
     return result.ok;
@@ -112,6 +116,30 @@ function publicAccount(account) {
     const isOwner = configuredAdminEmails.includes(email);
     const isAdmin = isOwner || readData().admins.some(admin => admin.accountId === account.id);
     return { firstName: account.firstName, lastName: account.lastName, email, role: isOwner ? 'owner' : isAdmin ? 'admin' : 'client' };
+}
+
+function deleteAccountData(data, accountId) {
+    const targetAccount = data.accounts.find(account => account.id === accountId);
+    if (!targetAccount) return { error: 'Account not found.' };
+    if (configuredAdminEmails.includes(normalizeEmail(targetAccount.email))) return { error: 'The owner account cannot be removed.' };
+
+    const targetEmail = normalizeEmail(targetAccount.email);
+    data.accounts = data.accounts.filter(account => account.id !== accountId);
+    data.sessions = (data.sessions || []).filter(session => session.accountId !== accountId);
+    data.admins = (data.admins || []).filter(admin => admin.accountId !== accountId);
+    data.comments = Object.fromEntries(Object.entries(data.comments || {}).map(([projectId, comments]) => [
+        projectId,
+        (Array.isArray(comments) ? comments : []).filter(comment => normalizeEmail(comment.email) !== targetEmail)
+    ]));
+    data.ratings = Object.fromEntries(Object.entries(data.ratings || {}).map(([projectId, ratings]) => {
+        const nextRatings = { ...(ratings || {}) };
+        Object.keys(nextRatings).forEach(email => {
+            if (normalizeEmail(email) === targetEmail) delete nextRatings[email];
+        });
+        return [projectId, nextRatings];
+    }));
+    data.contactRequests = (data.contactRequests || []).filter(contactRequest => normalizeEmail(contactRequest.email || contactRequest.accountEmail) !== targetEmail);
+    return { ok: true, email: targetEmail };
 }
 
 function currentAccount(request) {
@@ -343,6 +371,70 @@ app.get('/api/admins', (request, response) => {
         roster.push({ accountId: admin.accountId, name: admin.name || `${account?.firstName || 'Administrator'} ${account?.lastName || ''}`.trim(), email: normalizeEmail(admin.email || account?.email), isOwner: false });
     });
     response.json({ admins: roster });
+});
+
+app.get('/api/newsletter/subscribers', (request, response) => {
+    if (!requireAccount(request, response, true)) return;
+    const data = readData();
+    const subscribers = (data.accounts || [])
+        .filter(account => account.verifiedAt && account.newsletterOptIn === true && normalizeEmail(account.email))
+        .map(account => ({
+            accountId: account.id,
+            name: `${account.firstName || 'Subscriber'} ${account.lastName || ''}`.trim(),
+            email: normalizeEmail(account.email),
+            verifiedAt: account.verifiedAt
+        }))
+        .sort((first, second) => `${first.name} ${first.email}`.localeCompare(`${second.name} ${second.email}`));
+    response.json({ subscribers });
+});
+
+app.delete('/api/newsletter/subscribers/:accountId', (request, response) => {
+    const requester = requireAccount(request, response, true);
+    if (!requester) return;
+    const data = readData();
+    const targetAccount = data.accounts.find(account => account.id === request.params.accountId);
+    if (!targetAccount) return response.status(404).json({ error: 'Subscriber not found.' });
+    if (configuredAdminEmails.includes(normalizeEmail(targetAccount.email))) return response.status(403).json({ error: 'The owner subscription cannot be removed.' });
+    targetAccount.newsletterOptIn = false;
+    writeData(data);
+    response.json({ ok: true });
+});
+
+app.post('/api/newsletter/unsubscribe', (request, response) => {
+    const account = requireAccount(request, response);
+    if (!account) return;
+    const data = readData();
+    const targetAccount = data.accounts.find(item => item.id === account.id);
+    if (!targetAccount) return response.status(404).json({ error: 'Account not found.' });
+    targetAccount.newsletterOptIn = false;
+    writeData(data);
+    response.json({ ok: true });
+});
+
+app.get('/api/accounts', (request, response) => {
+    if (!requireAccount(request, response, true)) return;
+    const data = readData();
+    const accounts = (data.accounts || [])
+        .map(account => ({
+            accountId: account.id,
+            name: `${account.firstName || 'Account'} ${account.lastName || ''}`.trim(),
+            email: normalizeEmail(account.email),
+            verifiedAt: account.verifiedAt || null,
+            newsletterOptIn: account.newsletterOptIn === true
+        }))
+        .sort((first, second) => `${first.name} ${first.email}`.localeCompare(`${second.name} ${second.email}`));
+    response.json({ accounts });
+});
+
+app.delete('/api/accounts/:accountId', (request, response) => {
+    const requester = requireAccount(request, response, true);
+    if (!requester) return;
+    if (!configuredAdminEmails.includes(normalizeEmail(requester.email))) return response.status(403).json({ error: 'Only the owner can delete account data.' });
+    const data = readData();
+    const result = deleteAccountData(data, request.params.accountId);
+    if (result.error) return response.status(result.error === 'Account not found.' ? 404 : 403).json({ error: result.error });
+    writeData(data);
+    response.json({ ok: true, email: result.email });
 });
 
 app.post('/api/newsletter', async (request, response) => {

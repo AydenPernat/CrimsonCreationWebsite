@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Unsubscribe - Crimson Creations</title>
+    <meta name="description" content="Sign in to remove your Crimson Creations newsletter subscription.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+</head>
+<body class="unsubscribe-page">
+    <header class="site-header">
+        <div class="container nav-wrap">
+            <a class="brand" href="/">
+                <span class="brand-mark">CC</span>
+                <span class="brand-text">Crimson Creations</span>
+            </a>
+        </div>
+    </header>
+
+    <main class="page-shell">
+        <section class="section card-section">
+            <div class="portal-layout">
+                <div class="portal-card reveal-on-scroll">
+                    <p class="eyebrow">Newsletter management</p>
+                    <h1 class="section-title" style="font-size: 2.3rem;">Remove your email from the newsletter.</h1>
+                    <p>Sign in with the account that received the newsletter email. After we verify your identity, we will remove that account from the mailing list.</p>
+                    <form class="portal-form" id="unsubscribe-form" autocomplete="off">
+                        <div class="field">
+                            <label for="unsubscribe-email">Email</label>
+                            <input id="unsubscribe-email" type="email" autocomplete="email" placeholder="you@example.com" required>
+                        </div>
+                        <div class="field">
+                            <label for="unsubscribe-password">Password</label>
+                            <input id="unsubscribe-password" type="password" autocomplete="current-password" placeholder="Your account password" required>
+                        </div>
+                        <button class="btn btn-primary" id="unsubscribe-submit" type="submit">Sign in and unsubscribe</button>
+                        <p class="portal-status" id="unsubscribe-status" aria-live="polite">We will only remove the subscription after a successful sign in.</p>
+                    </form>
+                    <p><a href="/portal.html">Back to the portal</a></p>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <div class="cursor-glow" aria-hidden="true"></div>
+    <script src="script.js?v=1"></script>
+    <script src="admin.js?v=1"></script>
+</body>
+</html>
