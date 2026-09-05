@@ -30,11 +30,32 @@ app.use((_request, response, next) => {
     if (process.env.NODE_ENV === 'production') response.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
     next();
 });
-app.use((request, response, next) => request.path === '/data.json' ? response.sendStatus(404) : next());
+const privateFiles = new Set(['/data.json', '/server.js', '/package.json', '/package-lock.json', '/.env', '/.env.example']);
+app.use((request, response, next) => privateFiles.has(request.path) ? response.sendStatus(404) : next());
+const cleanPageRoutes = {
+    '/': 'index.html',
+    '/services': 'services.html',
+    '/projects': 'projects.html',
+    '/project': 'project.html',
+    '/about': 'about.html',
+    '/contact': 'contact.html',
+    '/portal': 'portal.html',
+    '/unsubscribe': 'unsubscribe.html',
+    '/success': 'success.html'
+};
+
+app.get('/index.html', (request, response) => {
+    const suffix = request.url.slice('/index.html'.length);
+    response.redirect(301, suffix ? `/${suffix}` : '/');
+});
+Object.entries(cleanPageRoutes).forEach(([cleanPath, fileName]) => {
+    app.get(cleanPath, (_request, response) => response.sendFile(path.join(__dirname, fileName)));
+});
+app.get('/home', (_request, response) => response.redirect('/'));
+app.get('/home.html', (_request, response) => response.redirect(301, '/'));
+app.get('/portal.html', (request, response) => response.redirect(301, `/portal${request.url.slice('/portal.html'.length)}`));
+app.get('/unsubscribe.html', (request, response) => response.redirect(301, `/unsubscribe${request.url.slice('/unsubscribe.html'.length)}`));
 app.use(express.static(__dirname));
-app.get(['/home', '/home.html'], (_request, response) => response.redirect('/'));
-app.get(['/portal', '/portal.html'], (_request, response) => response.sendFile(path.join(__dirname, 'portal.html')));
-app.get(['/unsubscribe', '/unsubscribe.html'], (_request, response) => response.sendFile(path.join(__dirname, 'unsubscribe.html')));
 
 function readData() {
     try {
@@ -94,8 +115,8 @@ async function sendNewsletterEmail(email, subject, message) {
             from: process.env.RESEND_FROM_EMAIL,
             to: [email],
             subject,
-            text: `${message}\n\nYou received this because you opted in to Crimson Creations updates.\nUnsubscribe: ${baseUrl}/unsubscribe.html`,
-            html: `<div>${escapeHtml(message).replace(/\r?\n/g, '<br>')}</div><p>You received this because you opted in to Crimson Creations updates.</p><p><a href="${baseUrl}/unsubscribe.html">Unsubscribe</a></p>`
+            text: `${message}\n\nYou received this because you opted in to Crimson Creations updates.\nUnsubscribe: ${baseUrl}/unsubscribe`,
+            html: `<div>${escapeHtml(message).replace(/\r?\n/g, '<br>')}</div><p>You received this because you opted in to Crimson Creations updates.</p><p><a href="${baseUrl}/unsubscribe">Unsubscribe</a></p>`
         })
     });
     return result.ok;
@@ -206,7 +227,7 @@ app.get('/api/auth/verify', (request, response) => {
     writeData(data);
     const sessionToken = createSession(account);
     response.setHeader('Set-Cookie', `crimson_session=${sessionToken}; HttpOnly; SameSite=Lax; Path=/; Max-Age=604800${secureCookie}`);
-    response.redirect('/portal.html?verified=1');
+    response.redirect('/portal?verified=1');
 });
 
 app.post('/api/auth/signin', (request, response) => {

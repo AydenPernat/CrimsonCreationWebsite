@@ -3,6 +3,25 @@ const menuIcon = document.getElementById('bar');
 const nav = document.getElementById('navbar');
 const header = document.querySelector('.site-header');
 
+// Keep internal navigation readable while preserving the separate page files.
+const cleanPagePaths = {
+    '/index.html': '/',
+    '/services.html': '/services',
+    '/projects.html': '/projects',
+    '/project.html': '/project',
+    '/about.html': '/about',
+    '/contact.html': '/contact',
+    '/portal.html': '/portal',
+    '/unsubscribe.html': '/unsubscribe',
+    '/success.html': '/success'
+};
+
+document.querySelectorAll('a[href]').forEach(link => {
+    const target = new URL(link.href, window.location.href);
+    const cleanPath = target.origin === window.location.origin ? cleanPagePaths[target.pathname] : null;
+    if (cleanPath) link.href = `${cleanPath}${target.search}${target.hash}`;
+});
+
 function setMenuState(isOpen) {
     if (!menuButton || !menuIcon || !nav) return;
 
@@ -671,7 +690,7 @@ if (estimateForm) {
             });
             const result = await response.json();
             if (!response.ok || result.success === false) throw new Error(result.message || 'Unable to send request.');
-            window.location.href = 'success.html';
+            window.location.href = '/success';
         } catch (error) {
             if (estimateSubmit) {
                 estimateSubmit.disabled = false;
@@ -814,7 +833,7 @@ function bindProjectCards() {
         if (event.target.closest('a, button')) return;
 
         const projectId = card.dataset.projectId;
-        if (projectId) window.location.href = `project.html?projectId=${encodeURIComponent(projectId)}&project=${encodeURIComponent(card.querySelector('[data-project-name]')?.textContent || '')}`;
+        if (projectId) window.location.href = `/project?projectId=${encodeURIComponent(projectId)}&project=${encodeURIComponent(card.querySelector('[data-project-name]')?.textContent || '')}`;
     });
 
     card.addEventListener('keydown', event => {
@@ -822,7 +841,7 @@ function bindProjectCards() {
         if (event.key === 'Enter' || event.key === ' ') {
             event.preventDefault();
             const projectId = card.dataset.projectId;
-            if (projectId) window.location.href = `project.html?projectId=${encodeURIComponent(projectId)}&project=${encodeURIComponent(card.querySelector('[data-project-name]')?.textContent || '')}`;
+        if (projectId) window.location.href = `/project?projectId=${encodeURIComponent(projectId)}&project=${encodeURIComponent(card.querySelector('[data-project-name]')?.textContent || '')}`;
         }
     });
     });
