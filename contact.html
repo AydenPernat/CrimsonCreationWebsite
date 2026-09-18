@@ -8,7 +8,7 @@
     <title>Crimson Creations</title>
     <meta name="description" content="Request a custom website from Crimson Creations. Share your goals, style, and timeline in a simple form.">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-    <link rel="stylesheet" href="style.css?v=4">
+    <link rel="stylesheet" href="style.css?v=16">
 </head>
 
 <body class="contact-page">
@@ -81,9 +81,14 @@
                 <div class="form-card reveal-on-scroll">
                     <p class="eyebrow">Request form</p>
                     <h2 class="section-title" style="font-size: 2rem;">Send your project details</h2>
-                    <p>Use this form to start the conversation. It helps us understand your business before we design anything.</p>
+                    <p>Sign in to send your project details and keep the request connected to your account.</p>
 
-                    <form id="estimate-form" action="/api/contact" method="POST" autocomplete="off">
+                    <div class="request-account-island" id="contact-auth-prompt">
+                        <i class="fa-solid fa-lock" aria-hidden="true"></i>
+                        <span><strong>Sign-in required.</strong> Sign in or create an account before sending a request.</span>
+                        <a href="/portal?next=contact">Sign in</a>
+                    </div>
+                    <form id="estimate-form" action="/api/contact" method="POST" autocomplete="off" hidden>
                         <input type="hidden" name="subject" value="New Crimson Creations project request">
                         <input type="hidden" name="from_name" value="Crimson Creations website">
                         <input type="checkbox" name="botcheck" style="display: none;">
@@ -119,8 +124,7 @@
                         </div>
                         <div class="request-account-island" id="request-account-island">
                             <i class="fa-solid fa-lock" aria-hidden="true"></i>
-                            <span id="request-account-copy"><strong>Client account</strong> Sign in to keep your request connected to your project.</span>
-                            <a href="portal.html">Sign in</a>
+                            <span id="request-account-copy"><strong>Client account</strong> Your request stays connected to your account.</span>
                         </div>
                         <button type="submit" class="btn btn-primary form-submit-button">Send request</button>
                         <p id="estimate-status" class="estimate-status" aria-live="polite"></p>
@@ -143,6 +147,7 @@
                     <a href="projects.html">Projects</a>
                     <a href="about.html">About</a>
                     <a href="contact.html">Contact</a>
+                    <a href="/unsubscribe">Unsubscribe from newsletter</a>
                 </div>
             </div>
             <div>
@@ -165,12 +170,9 @@
         </div>
         <div class="footer-bottom">
             <span>(c) 2026 Crimson Creations. All rights reserved.</span>
-            <span>Red, black, and built to feel premium.</span>
         </div>
     </footer>
-
-    <script src="admin.js?v=1"></script>
-<script src="script.js?v=26"></script>
+<script src="script.js?v=40"></script>
 </body>
 
 </html>

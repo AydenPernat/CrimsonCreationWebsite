@@ -7,7 +7,7 @@
     <title>Crimson Creations</title>
     <meta name="description" content="The Crimson Creations client portal for checking website project progress.">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-    <link rel="stylesheet" href="style.css?v=5">
+    <link rel="stylesheet" href="style.css?v=16">
 </head>
 
 <body>
@@ -126,7 +126,10 @@
                         <div class="portal-stat"><strong data-workspace-stat-next>--</strong><span>Next step</span></div>
                     </div>
                     <div class="portal-progress">
-                        <span class="portal-kicker" data-workspace-progress-label>Waiting for a project</span>
+                        <div class="portal-progress-heading">
+                            <span class="portal-kicker" data-workspace-progress-label>Waiting for a project</span>
+                            <strong data-workspace-progress-value>0% complete</strong>
+                        </div>
                         <div class="portal-progress-track" aria-label="Project progress: 0 percent"><span style="width: 0%;"></span></div>
                     </div>
                     <p data-workspace-message>Your workspace will show project updates, files, approvals, and milestones here when a project is connected.</p>
@@ -134,6 +137,15 @@
                         <div class="portal-setting"><span>Account email</span><strong data-client-email>Not connected</strong></div>
                         <div class="portal-setting"><span>Notifications</span><strong>On for updates</strong></div>
                     </div>
+                    <section class="portal-newsletter" aria-labelledby="portal-newsletter-title">
+                        <div>
+                            <p class="portal-kicker">Email updates</p>
+                            <h3 id="portal-newsletter-title">Newsletter</h3>
+                            <p id="portal-newsletter-description">Choose whether to receive Crimson Creations newsletter emails.</p>
+                        </div>
+                        <button class="btn btn-secondary" id="portal-newsletter-toggle" type="button" aria-describedby="portal-newsletter-description">Subscribe</button>
+                        <p class="portal-status" id="portal-newsletter-status" aria-live="polite"></p>
+                    </section>
                     <section class="workspace-updates" id="workspace-updates" hidden>
                         <div class="workspace-updates-heading">
                             <div>
@@ -363,6 +375,7 @@
                     <a href="projects.html">Projects</a>
                     <a href="about.html">About</a>
                     <a href="contact.html">Contact</a>
+                    <a href="/unsubscribe">Unsubscribe from newsletter</a>
                 </div>
             </div>
             <div>
@@ -385,12 +398,9 @@
         </div>
         <div class="footer-bottom">
             <span>(c) 2026 Crimson Creations. All rights reserved.</span>
-            <span>Built for ideas in progress.</span>
         </div>
     </footer>
-
-    <script src="admin.js?v=1"></script>
-<script src="script.js?v=26"></script>
+<script src="script.js?v=40"></script>
 </body>
 
 </html>

@@ -22,6 +22,76 @@ document.querySelectorAll('a[href]').forEach(link => {
     if (cleanPath) link.href = `${cleanPath}${target.search}${target.hash}`;
 });
 
+function showSiteDialog({ title, message, confirmLabel = 'Continue', cancelLabel = 'Cancel', tone = 'danger' }) {
+    return new Promise(resolve => {
+        const scrollX = window.scrollX;
+        const scrollY = window.scrollY;
+        const restoreScroll = () => {
+            if (window.scrollX === scrollX && window.scrollY === scrollY) return;
+            const previousBehavior = document.documentElement.style.scrollBehavior;
+            document.documentElement.style.scrollBehavior = 'auto';
+            window.scrollTo(scrollX, scrollY);
+            document.documentElement.style.scrollBehavior = previousBehavior;
+        };
+        const dialog = document.createElement('dialog');
+        dialog.className = `site-dialog site-dialog-${tone}`;
+        dialog.tabIndex = -1;
+        dialog.autofocus = true;
+
+        const card = document.createElement('div');
+        card.className = 'site-dialog-card';
+        const icon = document.createElement('span');
+        icon.className = 'site-dialog-icon';
+        icon.setAttribute('aria-hidden', 'true');
+        icon.textContent = tone === 'newsletter' ? '✉' : tone === 'info' ? 'i' : '!';
+        const heading = document.createElement('h2');
+        heading.id = 'site-dialog-title';
+        heading.textContent = title;
+        const description = document.createElement('p');
+        description.id = 'site-dialog-description';
+        description.textContent = message;
+        const actions = document.createElement('div');
+        actions.className = 'site-dialog-actions';
+
+        if (cancelLabel) {
+            const cancelButton = document.createElement('button');
+            cancelButton.type = 'button';
+            cancelButton.className = 'btn btn-secondary';
+            cancelButton.textContent = cancelLabel;
+            cancelButton.addEventListener('click', () => dialog.close('cancel'));
+            actions.append(cancelButton);
+        }
+
+        const confirmButton = document.createElement('button');
+        confirmButton.type = 'button';
+        confirmButton.className = 'btn btn-primary';
+        confirmButton.textContent = confirmLabel;
+        confirmButton.addEventListener('click', () => dialog.close('confirm'));
+        actions.append(confirmButton);
+        card.append(icon, heading, description, actions);
+        dialog.append(card);
+        dialog.setAttribute('aria-labelledby', heading.id);
+        dialog.setAttribute('aria-describedby', description.id);
+        dialog.addEventListener('cancel', event => {
+            event.preventDefault();
+            dialog.close('cancel');
+        });
+        dialog.addEventListener('click', event => {
+            if (event.target === dialog) dialog.close('cancel');
+        });
+        dialog.addEventListener('close', () => {
+            const confirmed = dialog.returnValue === 'confirm';
+            dialog.remove();
+            restoreScroll();
+            resolve(confirmed);
+        }, { once: true });
+        document.body.append(dialog);
+        dialog.showModal();
+        (cancelLabel ? actions.firstElementChild : confirmButton).focus({ preventScroll: true });
+        restoreScroll();
+    });
+}
+
 function setMenuState(isOpen) {
     if (!menuButton || !menuIcon || !nav) return;
 
@@ -76,52 +146,120 @@ const revealObserver = new IntersectionObserver(entries => {
     rootMargin: document.body.classList.contains('about-page') ? '0px 0px -12% 0px' : '0px 0px -8% 0px'
 });
 
+const phoneHeroPanel = window.matchMedia('(max-width: 560px)').matches
+    ? document.querySelector('.hero-panel.reveal-on-scroll')
+    : null;
+const phoneHeroRevealObserver = phoneHeroPanel
+    ? new IntersectionObserver((entries, observer) => {
+        entries.forEach(entry => {
+            if (entry.isIntersecting) {
+                entry.target.classList.add('is-visible');
+                observer.unobserve(entry.target);
+            }
+        });
+    }, { threshold: 0, rootMargin: '0px 0px -35% 0px' })
+    : null;
+
 document.querySelectorAll('.reveal-on-scroll').forEach((element, index) => {
     element.style.setProperty('--reveal-delay', `${Math.min(index * 70, 420)}ms`);
-    revealObserver.observe(element);
+    (element === phoneHeroPanel ? phoneHeroRevealObserver : revealObserver).observe(element);
 });
 
+const counterAnimationFrames = new WeakMap();
+const counterAnimationTargets = new WeakMap();
+
 function animateCounter(counter, target) {
+    const previousFrame = counterAnimationFrames.get(counter);
+    if (previousFrame !== undefined) {
+        if (counterAnimationTargets.get(counter) === target) return;
+        cancelAnimationFrame(previousFrame);
+    }
+
     const startValue = Number(counter.textContent || 0);
     const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-    if (reduceMotion) {
+    if (reduceMotion || startValue === target) {
         counter.textContent = target;
+        counterAnimationFrames.delete(counter);
+        counterAnimationTargets.delete(counter);
         return;
     }
 
     const startTime = performance.now();
-    const delay = target <= 10 ? 220 : 820;
-    const duration = target <= 10 ? 2600 : 6000;
+    const duration = target <= 10 ? 2350 : 5400;
 
-    const animateCounter = currentTime => {
-        const elapsed = currentTime - startTime - delay;
-        const progress = Math.max(0, Math.min(elapsed / duration, 1));
-        const easedProgress = target <= 1
-            ? progress
-            : target <= 10
-            ? progress < 0.76
-                ? (progress / 0.76) * ((target - 1) / Math.max(target, 1))
-                : ((target - 1) / Math.max(target, 1)) +
-                  (1 - Math.pow(1 - ((progress - 0.76) / 0.24), 2)) / Math.max(target, 1)
-            : progress < 0.5
-                ? 16 * Math.pow(progress, 5)
-                : 1 - Math.pow(-2 * progress + 2, 6) / 2;
-        counter.textContent = Math.floor(startValue + easedProgress * (target - startValue));
-        if (elapsed < duration) requestAnimationFrame(animateCounter);
+    const animateFrame = currentTime => {
+        const progress = Math.max(0, Math.min((currentTime - startTime) / duration, 1));
+        const shiftedProgress = progress + 0.2 * progress * (1 - progress);
+        const easedProgress = shiftedProgress * shiftedProgress * shiftedProgress *
+            (shiftedProgress * (shiftedProgress * 6 - 15) + 10);
+        const currentValue = startValue + easedProgress * (target - startValue);
+        counter.textContent = target >= startValue
+            ? Math.floor(currentValue)
+            : Math.ceil(currentValue);
+
+        if (progress < 1) {
+            counterAnimationFrames.set(counter, requestAnimationFrame(animateFrame));
+        } else {
+            counter.textContent = target;
+            counterAnimationFrames.delete(counter);
+            counterAnimationTargets.delete(counter);
+        }
     };
 
-    requestAnimationFrame(animateCounter);
+    counterAnimationTargets.set(counter, target);
+    counterAnimationFrames.set(counter, requestAnimationFrame(animateFrame));
 }
 
-document.querySelectorAll('[data-counter]').forEach(counter => animateCounter(counter, Number(counter.dataset.counter || 0)));
+function websiteCountOverride() {
+    //return 7000; // Change this number for a manual count. Comment out this line to use the server count.
+    return null;
+}
+
+function displayedWebsiteCount(serverCount) {
+    return Math.max(0, Math.floor(Number(websiteCountOverride() ?? serverCount) || 0));
+}
+
+document.querySelectorAll('[data-counter]:not([data-counter-key="websites"])').forEach(counter => {
+    animateCounter(counter, Number(counter.dataset.counter || 0));
+});
+
+let websiteCounterReady = false;
+let websiteCountResolved = websiteCountOverride() !== null;
+let websitePageLoadedAt = null;
+let websiteCounterTimer;
+const scheduleWebsiteCounters = () => {
+    if (websitePageLoadedAt === null || websiteCounterReady || !websiteCountResolved) return;
+
+    const counter = document.querySelector('[data-counter-key="websites"]');
+    if (!counter) return;
+
+    window.clearTimeout(websiteCounterTimer);
+    const count = displayedWebsiteCount(counter.dataset.counter);
+    const wait = count < 5 ? 50: count < 10 ? 200 : 500;
+    const elapsedSinceLoad = performance.now() - websitePageLoadedAt;
+    websiteCounterTimer = window.setTimeout(() => {
+        websiteCounterReady = true;
+        document.querySelectorAll('[data-counter-key="websites"]').forEach(element => {
+            animateCounter(element, displayedWebsiteCount(element.dataset.counter));
+        });
+    }, Math.max(0, wait - elapsedSinceLoad));
+};
+const startWebsiteCounters = () => {
+    websitePageLoadedAt = performance.now();
+    scheduleWebsiteCounters();
+};
+
+if (document.readyState === 'complete') startWebsiteCounters();
+else window.addEventListener('load', startWebsiteCounters, { once: true });
 
 const cursorGlow = document.querySelector('.cursor-glow') || document.body.appendChild(Object.assign(document.createElement('div'), {
     className: 'cursor-glow',
     ariaHidden: 'true'
 }));
 
-if (cursorGlow && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+if (cursorGlow) {
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     const touchTrail = document.body.appendChild(Object.assign(document.createElement('canvas'), {
         className: 'touch-trail-canvas',
         ariaHidden: 'true'
@@ -149,8 +287,8 @@ if (cursorGlow && !window.matchMedia('(prefers-reduced-motion: reduce)').matches
     const drawTouchBloom = (x, y) => {
         const radius = 110;
         const bloom = trailContext.createRadialGradient(x, y, 0, x, y, radius);
-        bloom.addColorStop(0, 'rgba(225, 6, 27, 0.1)');
-        bloom.addColorStop(0.42, 'rgba(225, 6, 27, 0.04)');
+        bloom.addColorStop(0, 'rgba(255, 53, 80, 0.34)');
+        bloom.addColorStop(0.42, 'rgba(225, 6, 27, 0.13)');
         bloom.addColorStop(1, 'rgba(225, 6, 27, 0)');
         trailContext.beginPath();
         trailContext.arc(x, y, radius, 0, Math.PI * 2);
@@ -176,7 +314,7 @@ if (cursorGlow && !window.matchMedia('(prefers-reduced-motion: reduce)').matches
         trailFadeTimer = window.setTimeout(() => {
             clearTouchTrail();
             touchTrail.classList.remove('is-fading');
-        }, 500);
+        }, reduceMotion ? 100 : 500);
     };
     const getPoint = event => event?.touches?.[0] || event?.changedTouches?.[0] || event;
     const showTrailAtPoint = (x, y) => {
@@ -269,6 +407,9 @@ const portalSignupStatus = document.getElementById('portal-signup-status');
 const portalBackToSignin = document.getElementById('portal-back-to-signin');
 const portalSignout = document.getElementById('portal-signout');
 const portalSigninCard = portalForm?.closest('.portal-card');
+const portalNewsletterToggle = document.getElementById('portal-newsletter-toggle');
+const portalNewsletterDescription = document.getElementById('portal-newsletter-description');
+const portalNewsletterStatus = document.getElementById('portal-newsletter-status');
 let currentSession = null;
 const apiRequest = async (url, options = {}) => {
     let response;
@@ -304,6 +445,15 @@ function accountInitials(account) {
     return `${account.firstName?.[0] || ''}${account.lastName?.[0] || ''}`.toUpperCase() || 'CC';
 }
 
+function renderNewsletterPreference() {
+    if (!portalNewsletterToggle || !currentSession) return;
+    const subscribed = currentSession.newsletterOptIn === true;
+    portalNewsletterToggle.textContent = subscribed ? 'Unsubscribe' : 'Subscribe';
+    if (portalNewsletterDescription) portalNewsletterDescription.textContent = subscribed
+        ? 'You are subscribed to Crimson Creations newsletter emails.'
+        : 'You are not subscribed to Crimson Creations newsletter emails.';
+}
+
 function showPortalPreview() {
     const account = getAccount() || { firstName: 'Client', lastName: '', email: 'Not connected' };
     const fullName = `${account.firstName || ''} ${account.lastName || ''}`.trim() || 'Client';
@@ -316,6 +466,7 @@ function showPortalPreview() {
     document.querySelectorAll('[data-client-initials]').forEach(element => element.textContent = accountInitials(account));
     document.querySelectorAll('[data-client-email]').forEach(element => element.textContent = account.email || 'Not connected');
     document.querySelectorAll('[data-account-role]').forEach(element => element.textContent = isOwnerAccount(account) ? 'Owner' : isAdminAccount(account) ? 'Administrator' : 'Client account');
+    renderNewsletterPreference();
     const adminPanel = document.getElementById('admin-panel');
     if (adminPanel) adminPanel.hidden = !isAdminAccount(account);
     renderAdminProjects();
@@ -327,6 +478,26 @@ function showPortalPreview() {
     loadContactRequests();
     loadWorkspaceUpdates();
 }
+
+if (portalNewsletterToggle) portalNewsletterToggle.addEventListener('click', async () => {
+    if (!currentSession) return;
+    const subscribed = currentSession.newsletterOptIn !== true;
+    portalNewsletterToggle.disabled = true;
+    if (portalNewsletterStatus) portalNewsletterStatus.textContent = 'Saving your newsletter preference...';
+    try {
+        const result = await apiRequest('/api/newsletter/subscription', { method: 'POST', body: JSON.stringify({ subscribed }) });
+        currentSession.newsletterOptIn = result.subscribed;
+        renderNewsletterPreference();
+        if (portalNewsletterStatus) portalNewsletterStatus.textContent = result.subscribed
+            ? 'You are now subscribed to the newsletter.'
+            : 'You have been removed from the newsletter.';
+        if (currentAccountIsAdmin()) loadNewsletterSubscribers();
+    } catch (error) {
+        if (portalNewsletterStatus) portalNewsletterStatus.textContent = error.message;
+    } finally {
+        portalNewsletterToggle.disabled = false;
+    }
+});
 
 function showSignupPanel() {
     if (portalForm) portalForm.closest('.portal-card').hidden = true;
@@ -346,11 +517,11 @@ async function loadCurrentSession() {
         updateCommentAccess();
         updateRequestAccount();
         if (currentSession) {
-            localStorage.removeItem('crimsonAccount');
             showPortalPreview();
         }
     } catch {
         currentSession = null;
+        updateRequestAccount();
     }
 }
 
@@ -363,6 +534,10 @@ if (portalForm && portalStatus) {
         try {
             const result = await apiRequest('/api/auth/signin', { method: 'POST', body: JSON.stringify({ email: document.getElementById('portal-email')?.value, password: document.getElementById('portal-password')?.value }) });
             currentSession = result.account;
+            if (new URLSearchParams(window.location.search).get('next') === 'contact') {
+                window.location.href = '/contact';
+                return;
+            }
             showPortalPreview();
         } catch (error) { portalStatus.textContent = error.message; }
     });
@@ -421,17 +596,13 @@ const ratingValues = [...document.querySelectorAll('[data-rating-value]')];
 const ratingCounts = [...document.querySelectorAll('[data-rating-count]')];
 const summaryStars = [...document.querySelectorAll('.rating-summary .stars')];
 const commentSubmit = commentForm?.querySelector('button[type="submit"]');
-const commentAccountLink = null;
 const commentList = document.querySelector('.comment-list');
 const commentViewMore = document.querySelector('[data-comment-view-more]');
 const ratingNotes = [...document.querySelectorAll('.rating-widget .comment-note')];
 const projectQueryId = new URLSearchParams(window.location.search).get('projectId');
 const projectQueryName = new URLSearchParams(window.location.search).get('project');
-const savedDetailProject = projectQueryId
-    ? getProjects().find(project => project.id === projectQueryId)
-    : projectQueryName ? getProjects().find(project => project.name === projectQueryName) : null;
-let projectOwnerEmail = normalizeEmail(document.body.dataset.ownerEmail || savedDetailProject?.ownerEmail);
-let projectStorageId = document.body.dataset.projectKey || projectQueryId || savedDetailProject?.id || projectQueryName?.toLowerCase().replace(/[^a-z0-9]+/g, '-') || 'project';
+let projectOwnerEmail = normalizeEmail(document.body.dataset.ownerEmail);
+let projectStorageId = document.body.dataset.projectKey || projectQueryId || projectQueryName?.toLowerCase().replace(/[^a-z0-9]+/g, '-') || 'project';
 
 function updateCommentAccess() {
     if (!isSignedIn()) return;
@@ -439,7 +610,6 @@ function updateCommentAccess() {
     const account = getAccount();
     const name = account ? `${account.firstName || ''} ${account.lastName || ''}`.trim() : 'your account';
     if (commentSubmit) commentSubmit.textContent = 'Post comment';
-    if (commentAccountLink) commentAccountLink.hidden = true;
     ratingNotes.forEach(note => note.textContent = `Signed in as ${name}. You can rate this project.`);
     if (commentStatus && commentStatus.textContent.includes('account')) {
         commentStatus.textContent = `Signed in as ${name}. Add a subject and comment below.`;
@@ -649,13 +819,14 @@ const requestAccountIsland = document.getElementById('request-account-island');
 const requestAccountCopy = document.getElementById('request-account-copy');
 const requestAccountLink = requestAccountIsland?.querySelector('a');
 const estimateSubmit = estimateForm?.querySelector('button[type="submit"]');
-sessionStorage.removeItem('crimsonPendingEstimate');
-sessionStorage.removeItem('crimsonPendingEstimateReturn');
+const contactAuthPrompt = document.getElementById('contact-auth-prompt');
 
 function updateRequestAccount() {
-    if (!requestAccountCopy) return;
-
-    if (!isSignedIn() || !getAccount()) return;
+    if (!estimateForm) return;
+    const signedIn = isSignedIn() && Boolean(getAccount());
+    estimateForm.hidden = !signedIn;
+    if (contactAuthPrompt) contactAuthPrompt.hidden = signedIn;
+    if (!signedIn || !requestAccountCopy) return;
 
     const account = getAccount();
     const name = `${account.firstName || ''} ${account.lastName || ''}`.trim() || 'Client';
@@ -663,6 +834,8 @@ function updateRequestAccount() {
     strong.textContent = 'Client account';
     requestAccountCopy.replaceChildren(strong, document.createTextNode(` Signed in as ${name} (${account.email}).`));
     if (requestAccountLink) requestAccountLink.hidden = true;
+    const emailField = document.getElementById('customer-email');
+    if (emailField && !emailField.value) emailField.value = account.email || '';
 }
 
 if (estimateForm) {
@@ -676,6 +849,11 @@ if (estimateForm) {
 
     estimateForm.addEventListener('submit', async event => {
         event.preventDefault();
+        if (!isSignedIn()) {
+            if (estimateStatus) estimateStatus.textContent = 'Sign in before sending a request.';
+            updateRequestAccount();
+            return;
+        }
         if (estimateSubmit) {
             estimateSubmit.disabled = true;
             estimateSubmit.textContent = 'Sending request...';
@@ -689,7 +867,7 @@ if (estimateForm) {
                 headers: { Accept: 'application/json', 'Content-Type': 'application/x-www-form-urlencoded' }
             });
             const result = await response.json();
-            if (!response.ok || result.success === false) throw new Error(result.message || 'Unable to send request.');
+            if (!response.ok || result.success === false) throw new Error(result.error || result.message || 'Unable to send request.');
             window.location.href = '/success';
         } catch (error) {
             if (estimateSubmit) {
@@ -712,11 +890,13 @@ let workCards = [...document.querySelectorAll('[data-work-card]')];
 function getProjects() { return projectCache; }
 
 function updateWebsiteCount(count) {
+    websiteCountResolved = true;
     document.querySelectorAll('[data-counter-key="websites"]').forEach(counter => {
-        const websiteCount = Math.max(0, Number(count) || 0);
+        const websiteCount = displayedWebsiteCount(count);
         counter.dataset.counter = String(websiteCount);
-        animateCounter(counter, websiteCount);
+        if (websiteCounterReady) animateCounter(counter, websiteCount);
     });
+    scheduleWebsiteCounters();
 }
 
 async function loadProjectsFromServer() {
@@ -731,6 +911,8 @@ async function loadProjectsFromServer() {
         updateAdminProjectCapacity();
     } catch {
         projectLoadFailed = true;
+        websiteCountResolved = true;
+        scheduleWebsiteCounters();
         if (workEmpty) {
             workEmpty.textContent = 'Projects are temporarily unavailable. Start the site server and refresh to load the portfolio.';
             workEmpty.hidden = workCards.length !== 0;
@@ -852,16 +1034,25 @@ loadProjectsFromServer();
 bindProjectCards();
 
 if (workGrid) {
-    workGrid.addEventListener('click', event => {
+    workGrid.addEventListener('click', async event => {
         const deleteButton = event.target.closest('[data-project-delete]');
         if (!deleteButton || !currentAccountIsAdmin()) return;
 
         const card = deleteButton.closest('[data-admin-project]');
         const projectId = card?.dataset.projectId;
         if (!card || !projectId) return;
-        if (!window.confirm('Delete this project for everyone using this portfolio?')) return;
+        if (!await showSiteDialog({
+            title: 'Delete this project?',
+            message: 'This removes the project from the public portfolio for everyone.',
+            confirmLabel: 'Delete project'
+        })) return;
 
-        apiRequest(`/api/projects/${encodeURIComponent(projectId)}`, { method: 'DELETE' }).then(() => loadProjectsFromServer()).catch(error => window.alert(error.message));
+        try {
+            await apiRequest(`/api/projects/${encodeURIComponent(projectId)}`, { method: 'DELETE' });
+            await loadProjectsFromServer();
+        } catch (error) {
+            await showSiteDialog({ title: 'Project could not be deleted', message: error.message, confirmLabel: 'Close', cancelLabel: null, tone: 'info' });
+        }
     });
 }
 
@@ -1094,7 +1285,11 @@ if (adminList) {
     adminList.addEventListener('click', async event => {
         const deleteButton = event.target.closest('[data-admin-id]');
         if (!deleteButton || !currentAccountIsAdmin()) return;
-        if (!window.confirm('Remove this administrator from the site?')) return;
+        if (!await showSiteDialog({
+            title: 'Remove administrator?',
+            message: 'This person will lose access to administrator tools.',
+            confirmLabel: 'Remove administrator'
+        })) return;
         try {
             await apiRequest(`/api/admins/${encodeURIComponent(deleteButton.dataset.adminId)}`, { method: 'DELETE' });
             if (adminManagementStatus) adminManagementStatus.textContent = 'Administrator removed.';
@@ -1166,7 +1361,12 @@ if (newsletterSubscriberList) {
     newsletterSubscriberList.addEventListener('click', async event => {
         const deleteButton = event.target.closest('[data-subscriber-id]');
         if (!deleteButton || !currentAccountIsAdmin()) return;
-        if (!window.confirm('Remove this person from the newsletter list?')) return;
+        const subscriber = newsletterSubscriberCache.find(item => item.accountId === deleteButton.dataset.subscriberId);
+        if (!await showSiteDialog({
+            title: 'Remove subscriber?',
+            message: `${subscriber?.email || 'This person'} will stop receiving newsletter emails.`,
+            confirmLabel: 'Remove subscriber'
+        })) return;
         try {
             await apiRequest(`/api/newsletter/subscribers/${encodeURIComponent(deleteButton.dataset.subscriberId)}`, { method: 'DELETE' });
             if (newsletterSubscriberStatus) newsletterSubscriberStatus.textContent = 'Subscriber removed from the newsletter list.';
@@ -1238,7 +1438,11 @@ if (accountManagementList) {
     accountManagementList.addEventListener('click', async event => {
         const deleteButton = event.target.closest('[data-account-id]');
         if (!deleteButton || !currentAccountIsAdmin()) return;
-        if (!window.confirm('Delete this account and all of its data?')) return;
+        if (!await showSiteDialog({
+            title: 'Delete this account?',
+            message: 'This permanently removes the account and its related data.',
+            confirmLabel: 'Delete account'
+        })) return;
         try {
             const target = accountManagementCache.find(account => account.accountId === deleteButton.dataset.accountId);
             await apiRequest(`/api/accounts/${encodeURIComponent(deleteButton.dataset.accountId)}`, { method: 'DELETE' });
@@ -1321,7 +1525,11 @@ function renderContactRequests() {
         deleteButton.addEventListener('click', async event => {
             event.preventDefault();
             event.stopPropagation();
-            if (!window.confirm('Delete this request permanently?')) return;
+            if (!await showSiteDialog({
+                title: 'Delete this request?',
+                message: 'This permanently removes the request and its project updates.',
+                confirmLabel: 'Delete request'
+            })) return;
             try {
                 await apiRequest(`/api/contact-requests/${encodeURIComponent(request.id)}`, { method: 'DELETE' });
                 item.remove();
@@ -1408,6 +1616,7 @@ function renderWorkspaceUpdates(requests) {
     workspaceUpdates.hidden = !currentSession;
     if (!currentSession || !workspaceNotificationList) return;
     const activeRequest = requests.find(request => request.status !== 'completed') || requests[0];
+    if (portalPreview) portalPreview.classList.toggle('has-project', Boolean(activeRequest));
     const progress = Number(activeRequest?.progress || 0);
     const notifications = requests.flatMap(request => (request.notifications || []).map(notification => ({ ...notification, projectName: request.business || 'Your project' })))
         .sort((first, second) => new Date(second.createdAt) - new Date(first.createdAt));
@@ -1415,10 +1624,15 @@ function renderWorkspaceUpdates(requests) {
     if (activeProjectsLabel) activeProjectsLabel.textContent = activeRequest ? activeRequest.status === 'completed' ? 'Project completed' : '1 active project' : 'No active project';
     if (workspaceMessage) workspaceMessage.textContent = activeRequest ? `Your project is ${progress}% complete. New progress notes will appear here as work continues.` : 'Your workspace will show project updates, files, approvals, and milestones here when a project is connected.';
     if (workspaceProgressLabel) workspaceProgressLabel.textContent = activeRequest ? 'Project progress' : 'Waiting for a project';
-    if (workspaceStatProgress) workspaceStatProgress.textContent = activeRequest ? `${progress}%` : '00%';
+    if (workspaceStatProgress) workspaceStatProgress.textContent = activeRequest ? `${progress}%` : '--';
     if (workspaceStatUpdates) workspaceStatUpdates.textContent = String(notifications.length).padStart(2, '0');
     if (workspaceStatNext) workspaceStatNext.textContent = notifications[0] ? `${Number(notifications[0].progress || progress)}%` : activeRequest ? 'Started' : '--';
-    if (workspaceProgress) workspaceProgress.textContent = `${progress}% complete`;
+    if (workspaceProgress) {
+        workspaceProgress.textContent = `${progress}% complete`;
+        workspaceProgress.hidden = !activeRequest;
+    }
+    const progressValue = document.querySelector('[data-workspace-progress-value]');
+    if (progressValue) progressValue.textContent = `${progress}% complete`;
     const track = document.querySelector('.portal-progress-track');
     const trackFill = track?.querySelector('span');
     if (trackFill) trackFill.style.width = `${progress}%`;
@@ -1497,6 +1711,7 @@ if (projectDetail) {
     const detailStatus = projectDetail.querySelector('[data-detail-status]');
 
     function renderProjectDetails(project) {
+        document.body.classList.remove('project-unavailable');
         projectStorageId = project.id;
         projectOwnerEmail = normalizeEmail(project.ownerEmail);
         projectDetail.querySelector('[data-detail-name]').textContent = project.name;
@@ -1524,9 +1739,12 @@ if (projectDetail) {
         projectDetail.querySelector('[data-detail-description]').textContent = 'Loading the latest project details.';
     }
 
-    function showProjectNotFound() {
-        projectDetail.querySelector('[data-detail-name]').textContent = 'Project not found';
-        projectDetail.querySelector('[data-detail-description]').textContent = 'This project is no longer in the active portfolio.';
+    function showProjectNotFound(noSelection = false) {
+        document.body.classList.add('project-unavailable');
+        projectDetail.querySelector('[data-detail-name]').textContent = noSelection ? 'Choose a project' : 'Project not found';
+        projectDetail.querySelector('[data-detail-description]').textContent = noSelection
+            ? 'Choose a project from the Projects page to see its details.'
+            : 'This project is no longer in the active portfolio.';
         const tags = document.querySelector('[data-detail-tags]');
         const detailLink = projectDetail.querySelector('[data-detail-link]');
         if (tags) tags.hidden = true;
@@ -1538,7 +1756,7 @@ if (projectDetail) {
     }
 
     async function loadProjectDetail() {
-        if (!projectId && !projectName) return;
+        if (!projectId && !projectName) { showProjectNotFound(true); return; }
         try {
             const result = await apiRequest('/api/projects');
             const serverProject = (result.projects || []).find(savedProject => projectId ? savedProject.id === projectId : savedProject.name === projectName)
@@ -1598,7 +1816,12 @@ if (newsletterForm) {
             if (newsletterStatus) newsletterStatus.textContent = 'Add a subject and message before sending.';
             return;
         }
-        if (!window.confirm('Send this newsletter to all opted-in subscribers?')) return;
+        if (!await showSiteDialog({
+            title: 'Send newsletter?',
+            message: `Send “${draft.subject}” to everyone currently subscribed to the newsletter?`,
+            confirmLabel: 'Send newsletter',
+            tone: 'newsletter'
+        })) return;
         if (newsletterSend) {
             newsletterSend.disabled = true;
             newsletterSend.textContent = 'Sending newsletter...';
@@ -1606,6 +1829,8 @@ if (newsletterForm) {
         if (newsletterStatus) newsletterStatus.textContent = 'Sending to opted-in subscribers...';
         try {
             const result = await apiRequest('/api/newsletter', { method: 'POST', body: JSON.stringify(draft) });
+            newsletterForm.reset();
+            localStorage.removeItem('crimsonNewsletterDraft');
             if (newsletterStatus) newsletterStatus.textContent = `Newsletter sent to ${result.sent} subscriber${result.sent === 1 ? '' : 's'}${result.failed ? `; ${result.failed} failed` : ''}.`;
         } catch (error) {
             if (newsletterStatus) newsletterStatus.textContent = error.message;
@@ -1619,6 +1844,29 @@ if (newsletterForm) {
 }
 
 const unsubscribeForm = document.getElementById('unsubscribe-form');
+const unsubscribeLinkForm = document.getElementById('unsubscribe-link-form');
+const unsubscribeLinkToken = new URLSearchParams(window.location.search).get('token');
+if (unsubscribeLinkForm && unsubscribeLinkToken) {
+    const unsubscribeIntro = document.getElementById('unsubscribe-intro');
+    const unsubscribeLinkStatus = document.getElementById('unsubscribe-link-status');
+    const unsubscribeLinkButton = document.getElementById('unsubscribe-link-submit');
+    if (unsubscribeIntro) unsubscribeIntro.textContent = 'Use the button below to stop receiving Crimson Creations newsletters.';
+    if (unsubscribeForm) unsubscribeForm.hidden = true;
+    unsubscribeLinkForm.hidden = false;
+    unsubscribeLinkForm.addEventListener('submit', async event => {
+        event.preventDefault();
+        if (unsubscribeLinkButton) unsubscribeLinkButton.disabled = true;
+        if (unsubscribeLinkStatus) unsubscribeLinkStatus.textContent = 'Removing your subscription...';
+        try {
+            await apiRequest('/api/newsletter/unsubscribe', { method: 'POST', body: JSON.stringify({ token: unsubscribeLinkToken }) });
+            if (unsubscribeLinkStatus) unsubscribeLinkStatus.textContent = 'You have been removed from the newsletter list.';
+            window.history.replaceState(null, '', '/unsubscribe');
+        } catch (error) {
+            if (unsubscribeLinkStatus) unsubscribeLinkStatus.textContent = error.message;
+            if (unsubscribeLinkButton) unsubscribeLinkButton.disabled = false;
+        }
+    });
+}
 if (unsubscribeForm) {
     const unsubscribeStatus = document.getElementById('unsubscribe-status');
     const unsubscribeButton = document.getElementById('unsubscribe-submit');
@@ -1626,27 +1874,24 @@ if (unsubscribeForm) {
         event.preventDefault();
         if (unsubscribeButton) {
             unsubscribeButton.disabled = true;
-            unsubscribeButton.textContent = 'Removing subscription...';
+            unsubscribeButton.textContent = 'Sending link...';
         }
-        if (unsubscribeStatus) unsubscribeStatus.textContent = 'Signing you in so we can remove you from the newsletter...';
+        if (unsubscribeStatus) unsubscribeStatus.textContent = 'Checking your newsletter subscription...';
         try {
-            const result = await apiRequest('/api/auth/signin', {
+            const result = await apiRequest('/api/newsletter/unsubscribe-request', {
                 method: 'POST',
                 body: JSON.stringify({
-                    email: document.getElementById('unsubscribe-email')?.value,
-                    password: document.getElementById('unsubscribe-password')?.value
+                    email: document.getElementById('unsubscribe-email')?.value
                 })
             });
-            currentSession = result.account;
-            await apiRequest('/api/newsletter/unsubscribe', { method: 'POST' });
-            if (unsubscribeStatus) unsubscribeStatus.textContent = 'You have been removed from the newsletter list.';
+            if (unsubscribeStatus) unsubscribeStatus.textContent = result.message;
             unsubscribeForm.reset();
         } catch (error) {
             if (unsubscribeStatus) unsubscribeStatus.textContent = error.message;
         } finally {
             if (unsubscribeButton) {
                 unsubscribeButton.disabled = false;
-                unsubscribeButton.textContent = 'Sign in and unsubscribe';
+                unsubscribeButton.textContent = 'Send removal link';
             }
         }
     });

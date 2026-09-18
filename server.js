@@ -19,6 +19,7 @@ const configuredAdminEmails = (process.env.CRIMSON_ADMIN_EMAILS || '').split(','
 const secureCookie = process.env.NODE_ENV === 'production' ? '; Secure' : '';
 const authAttempts = new Map();
 const contactAttempts = new Map();
+const unsubscribeAttempts = new Map();
 
 app.use(express.json({ limit: '100kb' }));
 app.use((_request, response, next) => {
@@ -30,8 +31,6 @@ app.use((_request, response, next) => {
     if (process.env.NODE_ENV === 'production') response.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
     next();
 });
-const privateFiles = new Set(['/data.json', '/server.js', '/package.json', '/package-lock.json', '/.env', '/.env.example']);
-app.use((request, response, next) => privateFiles.has(request.path) ? response.sendStatus(404) : next());
 const cleanPageRoutes = {
     '/': 'index.html',
     '/services': 'services.html',
@@ -53,16 +52,23 @@ Object.entries(cleanPageRoutes).forEach(([cleanPath, fileName]) => {
 });
 app.get('/home', (_request, response) => response.redirect('/'));
 app.get('/home.html', (_request, response) => response.redirect(301, '/'));
-app.get('/portal.html', (request, response) => response.redirect(301, `/portal${request.url.slice('/portal.html'.length)}`));
-app.get('/unsubscribe.html', (request, response) => response.redirect(301, `/unsubscribe${request.url.slice('/unsubscribe.html'.length)}`));
-app.use(express.static(__dirname));
+Object.entries(cleanPageRoutes).forEach(([cleanPath, fileName]) => {
+    if (cleanPath === '/') return;
+    app.get(`/${fileName}`, (request, response) => response.redirect(301, `${cleanPath}${request.url.slice(fileName.length + 1)}`));
+});
+['style.css', 'script.js', 'success.js'].forEach(fileName => {
+    app.get(`/${fileName}`, (_request, response) => response.sendFile(path.join(__dirname, fileName)));
+});
+app.use('/img', express.static(path.join(__dirname, 'img')));
 
 function readData() {
     try {
         const data = JSON.parse(fs.readFileSync(dataPath, 'utf8'));
+        if (!data || typeof data !== 'object' || Array.isArray(data)) throw new Error('data.json must contain an object.');
         return { accounts: [], projects: [], admins: [], comments: {}, ratings: {}, contactRequests: [], ...data };
-    } catch {
-        return { accounts: [], projects: [], admins: [], comments: {}, ratings: {}, contactRequests: [] };
+    } catch (error) {
+        if (error.code === 'ENOENT') return { accounts: [], projects: [], admins: [], comments: {}, ratings: {}, contactRequests: [] };
+        throw error;
     }
 }
 
@@ -71,6 +77,16 @@ function writeData(data) {
     fs.writeFileSync(temporaryPath, JSON.stringify(data, null, 2));
     fs.renameSync(temporaryPath, dataPath);
 }
+
+app.use('/api', (_request, response, next) => {
+    try {
+        readData();
+        next();
+    } catch (error) {
+        console.error(`Unable to read site data: ${error.message}`);
+        response.status(503).json({ error: 'Site data is temporarily unavailable. No changes were saved.' });
+    }
+});
 
 function normalizeEmail(email) { return String(email || '').trim().toLowerCase(); }
 
@@ -106,17 +122,42 @@ async function sendVerificationEmail(email, token) {
     return { ok: false, error: 'Resend rejected the verification email. Check the sender address and Resend recipient restrictions.' };
 }
 
-async function sendNewsletterEmail(email, subject, message) {
+function unsubscribeToken(account) {
+    const key = account.passwordHash || account.hash;
+    return crypto.createHmac('sha256', key).update(`newsletter-unsubscribe:${account.id}`).digest('hex');
+}
+
+async function sendNewsletterEmail(account, subject, message) {
     const baseUrl = process.env.CRIMSON_PUBLIC_URL || `http://localhost:${port}`;
+    const unsubscribeUrl = new URL('/unsubscribe', baseUrl);
+    unsubscribeUrl.searchParams.set('token', unsubscribeToken(account));
     const result = await fetch('https://api.resend.com/emails', {
         method: 'POST',
         headers: { Authorization: `Bearer ${process.env.RESEND_API_KEY}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({
             from: process.env.RESEND_FROM_EMAIL,
-            to: [email],
+            to: [normalizeEmail(account.email)],
             subject,
-            text: `${message}\n\nYou received this because you opted in to Crimson Creations updates.\nUnsubscribe: ${baseUrl}/unsubscribe`,
-            html: `<div>${escapeHtml(message).replace(/\r?\n/g, '<br>')}</div><p>You received this because you opted in to Crimson Creations updates.</p><p><a href="${baseUrl}/unsubscribe">Unsubscribe</a></p>`
+            text: `${message}\n\nYou received this because you opted in to Crimson Creations updates.\nUnsubscribe: ${unsubscribeUrl}`,
+            html: `<div>${escapeHtml(message).replace(/\r?\n/g, '<br>')}</div><p>You received this because you opted in to Crimson Creations updates.</p><p><a href="${escapeHtml(unsubscribeUrl)}">Unsubscribe</a></p>`
+        })
+    });
+    return result.ok;
+}
+
+async function sendUnsubscribeRequestEmail(account) {
+    const baseUrl = process.env.CRIMSON_PUBLIC_URL || `http://localhost:${port}`;
+    const unsubscribeUrl = new URL('/unsubscribe', baseUrl);
+    unsubscribeUrl.searchParams.set('token', unsubscribeToken(account));
+    const result = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${process.env.RESEND_API_KEY}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            from: process.env.RESEND_FROM_EMAIL,
+            to: [normalizeEmail(account.email)],
+            subject: 'Leave the Crimson Creations newsletter',
+            text: `Use this link to remove your email from the Crimson Creations newsletter: ${unsubscribeUrl}\n\nIf you did not request this, ignore this email.`,
+            html: `<p>Use this link to <a href="${escapeHtml(unsubscribeUrl)}">remove your email from the Crimson Creations newsletter</a>.</p><p>If you did not request this, ignore this email.</p>`
         })
     });
     return result.ok;
@@ -136,7 +177,7 @@ function publicAccount(account) {
     const email = normalizeEmail(account.email);
     const isOwner = configuredAdminEmails.includes(email);
     const isAdmin = isOwner || readData().admins.some(admin => admin.accountId === account.id);
-    return { firstName: account.firstName, lastName: account.lastName, email, role: isOwner ? 'owner' : isAdmin ? 'admin' : 'client' };
+    return { firstName: account.firstName, lastName: account.lastName, email, role: isOwner ? 'owner' : isAdmin ? 'admin' : 'client', newsletterOptIn: account.newsletterOptIn === true };
 }
 
 function deleteAccountData(data, accountId) {
@@ -202,15 +243,15 @@ app.post('/api/auth/signup', async (request, response) => {
     const { firstName, lastName, email, password } = request.body || {};
     const normalizedEmail = normalizeEmail(email);
     if (!firstName || !lastName || !normalizedEmail || typeof password !== 'string' || password.length < 8) return response.status(400).json({ error: 'Use a name, valid email, and password with at least 8 characters.' });
-    const data = readData();
-    if (data.accounts.some(account => normalizeEmail(account.email) === normalizedEmail)) return response.status(409).json({ error: 'That email already has an account.' });
+    if (readData().accounts.some(account => normalizeEmail(account.email) === normalizedEmail)) return response.status(409).json({ error: 'That email already has an account.' });
     const verificationToken = crypto.randomBytes(32).toString('hex');
     const account = { id: crypto.randomBytes(12).toString('hex'), firstName: String(firstName).trim(), lastName: String(lastName).trim(), email: normalizedEmail, newsletterOptIn: request.body?.newsletterOptIn === true, verifiedAt: null, verificationTokenHash: hashToken(verificationToken), verificationExpiresAt: Date.now() + 24 * 60 * 60 * 1000, ...hashPassword(password) };
-    data.accounts.push(account);
     let verificationResult;
     try { verificationResult = await sendVerificationEmail(normalizedEmail, verificationToken); } catch { verificationResult = { ok: false, error: 'The email service could not be reached.' }; }
     if (!verificationResult.ok) return response.status(503).json({ error: verificationResult.error });
-    if (!data.sessions) data.sessions = [];
+    const data = readData();
+    if (data.accounts.some(item => normalizeEmail(item.email) === normalizedEmail)) return response.status(409).json({ error: 'That email already has an account.' });
+    data.accounts.push(account);
     writeData(data);
     response.status(201).json({ message: 'Check your email to verify the account before signing in. If you do not see it, check your Spam or Junk folder.' });
 });
@@ -421,15 +462,60 @@ app.delete('/api/newsletter/subscribers/:accountId', (request, response) => {
     response.json({ ok: true });
 });
 
+app.post('/api/newsletter/unsubscribe-request', async (request, response) => {
+    const email = normalizeEmail(request.body?.email);
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return response.status(400).json({ error: 'Enter a valid email address.' });
+    const key = request.ip || 'unknown';
+    const now = Date.now();
+    const attempts = (unsubscribeAttempts.get(key) || []).filter(timestamp => now - timestamp < 60 * 60 * 1000);
+    if (attempts.length >= 5) return response.status(429).json({ error: 'Too many requests. Please try again later.' });
+    attempts.push(now); unsubscribeAttempts.set(key, attempts);
+    if (!process.env.RESEND_API_KEY || !process.env.RESEND_FROM_EMAIL) return response.status(503).json({ error: 'Email delivery is temporarily unavailable.' });
+    const account = readData().accounts.find(item => normalizeEmail(item.email) === email && item.verifiedAt && item.newsletterOptIn === true);
+    if (account) {
+        try {
+            if (!await sendUnsubscribeRequestEmail(account)) console.error('Resend rejected an unsubscribe request email.');
+        } catch (error) {
+            console.error(`Unsubscribe request email failed: ${error.message}`);
+        }
+    }
+    response.json({ message: 'If that email is subscribed, we sent a link to remove it from the newsletter.' });
+});
+
 app.post('/api/newsletter/unsubscribe', (request, response) => {
-    const account = requireAccount(request, response);
-    if (!account) return;
     const data = readData();
-    const targetAccount = data.accounts.find(item => item.id === account.id);
+    const token = String(request.body?.token || '');
+    let targetAccount;
+    if (token) {
+        if (!/^[a-f0-9]{64}$/.test(token)) return response.status(400).json({ error: 'This unsubscribe link is invalid.' });
+        const provided = Buffer.from(token, 'hex');
+        targetAccount = data.accounts.find(item => {
+            if (!(item.passwordHash || item.hash)) return false;
+            return crypto.timingSafeEqual(provided, Buffer.from(unsubscribeToken(item), 'hex'));
+        });
+        if (!targetAccount) return response.status(400).json({ error: 'This unsubscribe link is invalid.' });
+    } else {
+        const account = requireAccount(request, response);
+        if (!account) return;
+        targetAccount = data.accounts.find(item => item.id === account.id);
+    }
     if (!targetAccount) return response.status(404).json({ error: 'Account not found.' });
+    if (targetAccount.newsletterOptIn !== true) return response.status(409).json({ error: 'This email is not currently subscribed.' });
     targetAccount.newsletterOptIn = false;
     writeData(data);
     response.json({ ok: true });
+});
+
+app.post('/api/newsletter/subscription', (request, response) => {
+    const account = requireAccount(request, response);
+    if (!account) return;
+    if (typeof request.body?.subscribed !== 'boolean') return response.status(400).json({ error: 'Choose whether to subscribe or unsubscribe.' });
+    const data = readData();
+    const targetAccount = data.accounts.find(item => item.id === account.id);
+    if (!targetAccount) return response.status(404).json({ error: 'Account not found.' });
+    targetAccount.newsletterOptIn = request.body.subscribed;
+    writeData(data);
+    response.json({ subscribed: targetAccount.newsletterOptIn });
 });
 
 app.get('/api/accounts', (request, response) => {
@@ -475,7 +561,7 @@ app.post('/api/newsletter', async (request, response) => {
     let failed = 0;
     for (const recipient of recipients) {
         try {
-            if (await sendNewsletterEmail(normalizeEmail(recipient.email), subject, message)) sent += 1;
+            if (await sendNewsletterEmail(recipient, subject, message)) sent += 1;
             else failed += 1;
         } catch (error) {
             failed += 1;
@@ -513,28 +599,37 @@ app.delete('/api/admins/:accountId', (request, response) => {
 
 app.use(express.urlencoded({ extended: false }));
 app.post('/api/contact', async (request, response) => {
+    const signedInAccount = requireAccount(request, response);
+    if (!signedInAccount) return;
+    const body = request.body || {};
+    const name = String(body.name || '').trim();
+    const business = String(body.business || '').trim();
+    const email = normalizeEmail(body.email);
+    const details = String(body.details || '').trim();
+    if (!name || !business || !details || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        return response.status(400).json({ error: 'Add your name, business, valid email, and project details.' });
+    }
     const key = request.ip || 'unknown';
     const now = Date.now();
     const attempts = (contactAttempts.get(key) || []).filter(timestamp => now - timestamp < 60 * 60 * 1000);
     if (attempts.length >= 5) return response.status(429).json({ message: 'Too many requests. Please try again later.' });
     attempts.push(now); contactAttempts.set(key, attempts);
-    if (request.body.botcheck) return response.json({ success: true });
+    if (body.botcheck) return response.json({ success: true });
     const data = readData();
-    const signedInAccount = currentAccount(request);
     const contactRequest = {
         id: crypto.randomBytes(12).toString('hex'),
         accountEmail: normalizeEmail(signedInAccount?.email),
-        name: String(request.body.name || '').trim().slice(0, 120),
-        business: String(request.body.business || '').trim().slice(0, 160),
-        email: normalizeEmail(request.body.email).slice(0, 200),
-        phone: String(request.body.phone || '').trim().slice(0, 80),
-        budget: String(request.body.budget || '').trim().slice(0, 120),
-        pages: String(request.body.pages || '').trim().slice(0, 300),
-        details: String(request.body.details || '').trim().slice(0, 4000),
-        projectGoal: String(request.body.project_goal || '').trim().slice(0, 1000),
-        projectStyle: String(request.body.project_style || '').trim().slice(0, 1000),
-        projectPages: String(request.body.project_pages || '').trim().slice(0, 1000),
-        projectTimeline: String(request.body.project_timeline || '').trim().slice(0, 1000),
+        name: name.slice(0, 120),
+        business: business.slice(0, 160),
+        email: email.slice(0, 200),
+        phone: String(body.phone || '').trim().slice(0, 80),
+        budget: String(body.budget || '').trim().slice(0, 120),
+        pages: String(body.pages || '').trim().slice(0, 300),
+        details: details.slice(0, 4000),
+        projectGoal: String(body.project_goal || '').trim().slice(0, 1000),
+        projectStyle: String(body.project_style || '').trim().slice(0, 1000),
+        projectPages: String(body.project_pages || '').trim().slice(0, 1000),
+        projectTimeline: String(body.project_timeline || '').trim().slice(0, 1000),
         status: 'pending',
         progress: 0,
         notifications: [],
@@ -669,5 +764,5 @@ app.delete('/api/my-workspace/notifications/:notificationId', (request, response
 });
 
 app.use('/api', (_request, response) => response.status(404).json({ error: 'API endpoint not found.' }));
-app.get('*', (_request, response) => response.sendFile(path.join(__dirname, 'index.html')));
+app.get('*', (_request, response) => response.status(404).sendFile(path.join(__dirname, '404.html')));
 app.listen(port, '0.0.0.0', () => console.log(`Crimson Creations is running on port ${port}`));

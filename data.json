@@ -7,7 +7,8 @@
       "email": "crimsoncreationgames@gmail.com",
       "verifiedAt": "2026-08-31T23:24:15.369Z",
       "passwordSalt": "efdefd31ff3e7121232967a6e0a7b5a0",
-      "passwordHash": "c89af62ba3c44bf6b4fcdb9d8e037d0c68398817f78d470a956c31e06be9eb435e059a72ae308370a2457510138541ecc45b4d9f990399c3e84dbb0670170824"
+      "passwordHash": "c89af62ba3c44bf6b4fcdb9d8e037d0c68398817f78d470a956c31e06be9eb435e059a72ae308370a2457510138541ecc45b4d9f990399c3e84dbb0670170824",
+      "newsletterOptIn": true
     }
   ],
   "projects": [],
@@ -72,12 +73,37 @@
       "crimsoncreationgames@gmail.com": 5
     }
   },
-  "contactRequests": [],
+  "contactRequests": [
+    {
+      "id": "056d4a3bb688d1ed3cd75214",
+      "accountEmail": "",
+      "name": "f",
+      "business": "f",
+      "email": "f@f",
+      "phone": "f",
+      "budget": "f",
+      "pages": "f",
+      "details": "f",
+      "projectGoal": "f",
+      "projectStyle": "f",
+      "projectPages": "f",
+      "projectTimeline": "f",
+      "status": "pending",
+      "progress": 0,
+      "notifications": [],
+      "createdAt": "2026-09-17T00:08:27.635Z"
+    }
+  ],
   "sessions": [
     {
       "accountId": "3442857e4ec85aab78866af2",
-      "tokenHash": "0bf22b436c1cf4301abceec5db404dbfd773a917951203d76e5b97ba13303473",
-      "expiresAt": 1789245120202
+      "tokenHash": "ba6764cd5302f6a0ac6e75c3a5b04e1ebb4a9c60983a375e884dd644c0dff83c",
+      "expiresAt": 1790208561973
+    },
+    {
+      "accountId": "3442857e4ec85aab78866af2",
+      "tokenHash": "a31152ccbb38d379ce5040403a7f73deecf3a8c3ac83fcf5a203b3675ec96a1c",
+      "expiresAt": 1790369374361
     }
   ]
 }
