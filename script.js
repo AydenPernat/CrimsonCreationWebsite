@@ -267,13 +267,20 @@ if (cursorGlow) {
     const trailContext = touchTrail.getContext('2d');
     let trailPoint = null;
     let trailFadeTimer;
+    let activeTouchId = null;
 
     const resizeTouchTrail = () => {
         const scale = window.devicePixelRatio || 1;
+        // Mobile browser bars resize the viewport during a swipe. Keep the ink.
+        const previous = document.createElement('canvas');
+        previous.width = touchTrail.width;
+        previous.height = touchTrail.height;
+        previous.getContext('2d').drawImage(touchTrail, 0, 0);
         touchTrail.width = Math.floor(window.innerWidth * scale);
         touchTrail.height = Math.floor(window.innerHeight * scale);
         touchTrail.style.width = `${window.innerWidth}px`;
         touchTrail.style.height = `${window.innerHeight}px`;
+        trailContext.drawImage(previous, 0, 0);
         trailContext.setTransform(scale, 0, 0, scale, 0, 0);
     };
     const clearTouchTrail = () => trailContext.clearRect(0, 0, window.innerWidth, window.innerHeight);
@@ -316,7 +323,7 @@ if (cursorGlow) {
             touchTrail.classList.remove('is-fading');
         }, reduceMotion ? 100 : 500);
     };
-    const getPoint = event => event?.touches?.[0] || event?.changedTouches?.[0] || event;
+    const getActiveTouch = touches => Array.from(touches || []).find(touch => touch.identifier === activeTouchId);
     const showTrailAtPoint = (x, y) => {
         cursorGlow.classList.add('is-touching');
         cursorGlow.style.setProperty('--cursor-x', `${x}px`);
@@ -325,18 +332,28 @@ if (cursorGlow) {
         else extendTouchTrail(x, y);
     };
     const handleTouchStart = event => {
-        const touch = getPoint(event);
+        if (activeTouchId !== null) return;
+        const touch = event.changedTouches[0];
         if (!touch) return;
+        activeTouchId = touch.identifier;
         showTrailAtPoint(touch.clientX, touch.clientY);
     };
     const handleTouchMove = event => {
-        const touch = getPoint(event);
+        const touch = getActiveTouch(event.touches);
         if (!touch) return;
         showTrailAtPoint(touch.clientX, touch.clientY);
     };
-    const handleTouchEnd = () => {
+    const finishGesture = () => {
         cursorGlow.classList.remove('is-touching');
         finishTouchTrail();
+    };
+    const handleTouchEnd = event => {
+        const touch = getActiveTouch(event.changedTouches);
+        if (!touch) return;
+        // Include the release position even for swipes with very few move events.
+        if (event.type !== 'touchcancel') showTrailAtPoint(touch.clientX, touch.clientY);
+        activeTouchId = null;
+        finishGesture();
     };
     const handlePointerDown = event => {
         if (event.pointerType !== 'touch') return;
@@ -348,19 +365,25 @@ if (cursorGlow) {
     };
     const handlePointerEnd = event => {
         if (event.pointerType !== 'touch') return;
-        handleTouchEnd();
+        finishGesture();
     };
 
     resizeTouchTrail();
     window.addEventListener('resize', resizeTouchTrail, { passive: true });
-    window.addEventListener('pointerdown', handlePointerDown, { passive: true });
-    window.addEventListener('pointermove', handlePointerMove, { passive: true });
-    window.addEventListener('pointerup', handlePointerEnd, { passive: true });
-    window.addEventListener('pointercancel', handlePointerEnd, { passive: true });
-    window.addEventListener('touchstart', handleTouchStart, { passive: true });
-    window.addEventListener('touchmove', handleTouchMove, { passive: true });
-    window.addEventListener('touchend', handleTouchEnd, { passive: true });
-    window.addEventListener('touchcancel', handleTouchEnd, { passive: true });
+    // Touch events keep tracking native scroll gestures after pointercancel.
+    // Never let both event families start/end the same trail.
+    const gestureOptions = { passive: true, capture: true };
+    if ('ontouchstart' in window) {
+        window.addEventListener('touchstart', handleTouchStart, gestureOptions);
+        window.addEventListener('touchmove', handleTouchMove, gestureOptions);
+        window.addEventListener('touchend', handleTouchEnd, gestureOptions);
+        window.addEventListener('touchcancel', handleTouchEnd, gestureOptions);
+    } else {
+        window.addEventListener('pointerdown', handlePointerDown, gestureOptions);
+        window.addEventListener('pointermove', handlePointerMove, gestureOptions);
+        window.addEventListener('pointerup', handlePointerEnd, gestureOptions);
+        window.addEventListener('pointercancel', handlePointerEnd, gestureOptions);
+    }
     window.addEventListener('pointermove', event => {
         if (event.pointerType === 'touch') return;
         cursorGlow.style.setProperty('--cursor-x', `${event.clientX}px`);

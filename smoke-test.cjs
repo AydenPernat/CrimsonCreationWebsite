@@ -19,7 +19,7 @@ const data = {
     sessions: [{ accountId: 'owner', tokenHash: crypto.createHash('sha256').update(sessionToken).digest('hex'), expiresAt: Date.now() + 60000 }]
 };
 for (const file of fs.readdirSync(__dirname)) {
-    if (file === 'server.js' || file.endsWith('.html') || ['style.css', 'script.js', 'success.js'].includes(file)) {
+    if (['server.js', 'data-store.cjs'].includes(file) || file.endsWith('.html') || ['style.css', 'script.js', 'success.js'].includes(file)) {
         fs.copyFileSync(path.join(__dirname, file), path.join(testDir, file));
     }
 }
@@ -37,7 +37,7 @@ global.fetch = async (_url, options) => {
 
 const child = spawn(process.execPath, ['--require', path.join(testDir, 'mock.cjs'), path.join(testDir, 'server.js')], {
     cwd: testDir,
-    env: { ...process.env, PORT: String(port), CRIMSON_ADMIN_EMAILS: ownerEmail,
+    env: { ...process.env, DATABASE_URL: '', RENDER: '', PORT: String(port), CRIMSON_ADMIN_EMAILS: ownerEmail,
         CRIMSON_PUBLIC_URL: `http://127.0.0.1:${port}`, RESEND_API_KEY: 'test', RESEND_FROM_EMAIL: ownerEmail },
     stdio: ['ignore', 'pipe', 'pipe']
 });

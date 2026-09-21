@@ -4,9 +4,13 @@
   "private": true,
   "scripts": {
     "start": "node server.js",
-    "test": "node smoke-test.cjs"
+    "test": "node --test regression-test.cjs && node smoke-test.cjs"
   },
   "dependencies": {
-    "express": "^4.19.2"
+    "express": "^4.19.2",
+    "pg": "^8.23.0"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "^0.5.8"
   }
 }

@@ -15,6 +15,9 @@ try {
 const app = express();
 const port = process.env.PORT || 3000;
 const dataPath = path.join(__dirname, 'data.json');
+const { createDataStore, registerApi } = require('./data-store.cjs');
+const store = createDataStore({ dataPath, databaseUrl: process.env.DATABASE_URL });
+const api = (method, route, handler) => registerApi(app, store, method, route, handler);
 const configuredAdminEmails = (process.env.CRIMSON_ADMIN_EMAILS || '').split(',').map(normalizeEmail).filter(Boolean);
 const secureCookie = process.env.NODE_ENV === 'production' ? '; Secure' : '';
 const authAttempts = new Map();
@@ -61,32 +64,8 @@ Object.entries(cleanPageRoutes).forEach(([cleanPath, fileName]) => {
 });
 app.use('/img', express.static(path.join(__dirname, 'img')));
 
-function readData() {
-    try {
-        const data = JSON.parse(fs.readFileSync(dataPath, 'utf8'));
-        if (!data || typeof data !== 'object' || Array.isArray(data)) throw new Error('data.json must contain an object.');
-        return { accounts: [], projects: [], admins: [], comments: {}, ratings: {}, contactRequests: [], ...data };
-    } catch (error) {
-        if (error.code === 'ENOENT') return { accounts: [], projects: [], admins: [], comments: {}, ratings: {}, contactRequests: [] };
-        throw error;
-    }
-}
-
-function writeData(data) {
-    const temporaryPath = `${dataPath}.tmp`;
-    fs.writeFileSync(temporaryPath, JSON.stringify(data, null, 2));
-    fs.renameSync(temporaryPath, dataPath);
-}
-
-app.use('/api', (_request, response, next) => {
-    try {
-        readData();
-        next();
-    } catch (error) {
-        console.error(`Unable to read site data: ${error.message}`);
-        response.status(503).json({ error: 'Site data is temporarily unavailable. No changes were saved.' });
-    }
-});
+const readData = () => store.read();
+const writeData = data => store.write(data);
 
 function normalizeEmail(email) { return String(email || '').trim().toLowerCase(); }
 
@@ -236,9 +215,9 @@ function allowAuthAttempt(request, response) {
     attempts.push(now); authAttempts.set(key, attempts); return true;
 }
 
-app.get('/api/auth/me', (request, response) => response.json({ account: publicAccount(currentAccount(request)) }));
+api('get', '/api/auth/me', (request, response) => response.json({ account: publicAccount(currentAccount(request)) }));
 
-app.post('/api/auth/signup', async (request, response) => {
+api('post', '/api/auth/signup', async (request, response) => {
     if (!allowAuthAttempt(request, response)) return;
     const { firstName, lastName, email, password } = request.body || {};
     const normalizedEmail = normalizeEmail(email);
@@ -256,7 +235,7 @@ app.post('/api/auth/signup', async (request, response) => {
     response.status(201).json({ message: 'Check your email to verify the account before signing in. If you do not see it, check your Spam or Junk folder.' });
 });
 
-app.get('/api/auth/verify', (request, response) => {
+api('get', '/api/auth/verify', (request, response) => {
     const token = String(request.query.token || '');
     const data = readData();
     const account = data.accounts.find(item => item.verificationTokenHash === hashToken(token) && item.verificationExpiresAt > Date.now());
@@ -271,7 +250,7 @@ app.get('/api/auth/verify', (request, response) => {
     response.redirect('/portal?verified=1');
 });
 
-app.post('/api/auth/signin', (request, response) => {
+api('post', '/api/auth/signin', (request, response) => {
     if (!allowAuthAttempt(request, response)) return;
     const { email, password } = request.body || {};
     const account = readData().accounts.find(item => normalizeEmail(item.email) === normalizeEmail(email));
@@ -283,14 +262,14 @@ app.post('/api/auth/signin', (request, response) => {
     response.json({ account: publicAccount(account) });
 });
 
-app.post('/api/auth/signout', (request, response) => {
+api('post', '/api/auth/signout', (request, response) => {
     const token = request.headers.cookie?.match(/crimson_session=([^;]+)/)?.[1];
     if (token) { const data = readData(); data.sessions = (data.sessions || []).filter(session => session.tokenHash !== hashToken(token)); writeData(data); }
     response.setHeader('Set-Cookie', `crimson_session=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0${secureCookie}`);
     response.json({ ok: true });
 });
 
-app.get('/api/projects', (_request, response) => {
+api('get', '/api/projects', (_request, response) => {
     const data = readData();
     const projects = data.projects.map(project => {
         const ratings = Object.values(data.ratings[project.id] || {});
@@ -299,7 +278,7 @@ app.get('/api/projects', (_request, response) => {
     response.json({ projects, websiteCount: projects.filter(project => project.projectType !== 'game').length });
 });
 
-app.get('/api/projects/:id/feedback', (request, response) => {
+api('get', '/api/projects/:id/feedback', (request, response) => {
     const data = readData();
     if (!data.projects.some(project => project.id === request.params.id)) return response.status(404).json({ error: 'Project not found.' });
     const comments = Array.isArray(data.comments[request.params.id]) ? data.comments[request.params.id] : [];
@@ -318,7 +297,7 @@ app.get('/api/projects/:id/feedback', (request, response) => {
     })), rating: average, count: ratings.length, viewerRating });
 });
 
-app.put('/api/projects/:id/feedback/rating', (request, response) => {
+api('put', '/api/projects/:id/feedback/rating', (request, response) => {
     const account = requireAccount(request, response);
     if (!account) return;
     const rating = Number(request.body?.rating);
@@ -336,7 +315,7 @@ app.put('/api/projects/:id/feedback/rating', (request, response) => {
     response.json({ ok: true });
 });
 
-app.post('/api/projects/:id/feedback/comments', (request, response) => {
+api('post', '/api/projects/:id/feedback/comments', (request, response) => {
     const account = requireAccount(request, response);
     if (!account) return;
     const subject = String(request.body?.subject || '').trim();
@@ -352,7 +331,7 @@ app.post('/api/projects/:id/feedback/comments', (request, response) => {
     response.status(201).json({ comment });
 });
 
-app.delete('/api/projects/:id/feedback/comments/:commentId', (request, response) => {
+api('delete', '/api/projects/:id/feedback/comments/:commentId', (request, response) => {
     const account = requireAccount(request, response);
     if (!account) return;
     const data = readData();
@@ -394,7 +373,7 @@ function normalizeProjectPayload(input = {}) {
     return { project };
 }
 
-app.post('/api/projects', (request, response) => {
+api('post', '/api/projects', (request, response) => {
     if (!requireAccount(request, response, true)) return;
     const normalized = normalizeProjectPayload(request.body);
     if (normalized.error) return response.status(400).json({ error: normalized.error });
@@ -403,7 +382,7 @@ app.post('/api/projects', (request, response) => {
     response.status(201).json({ project });
 });
 
-app.put('/api/projects/:id', (request, response) => {
+api('put', '/api/projects/:id', (request, response) => {
     if (!requireAccount(request, response, true)) return;
     const data = readData(); const index = data.projects.findIndex(project => project.id === request.params.id);
     if (index < 0) return response.status(404).json({ error: 'Project not found.' });
@@ -413,14 +392,14 @@ app.put('/api/projects/:id', (request, response) => {
     response.json({ project: data.projects[index] });
 });
 
-app.delete('/api/projects/:id', (request, response) => {
+api('delete', '/api/projects/:id', (request, response) => {
     if (!requireAccount(request, response, true)) return;
     const data = readData(); const nextProjects = data.projects.filter(project => project.id !== request.params.id);
     if (nextProjects.length === data.projects.length) return response.status(404).json({ error: 'Project not found.' });
     data.projects = nextProjects; writeData(data); response.json({ ok: true });
 });
 
-app.get('/api/admins', (request, response) => {
+api('get', '/api/admins', (request, response) => {
     if (!requireAccount(request, response, true)) return;
     const data = readData();
     const roster = configuredAdminEmails.map(email => {
@@ -435,7 +414,7 @@ app.get('/api/admins', (request, response) => {
     response.json({ admins: roster });
 });
 
-app.get('/api/newsletter/subscribers', (request, response) => {
+api('get', '/api/newsletter/subscribers', (request, response) => {
     if (!requireAccount(request, response, true)) return;
     const data = readData();
     const subscribers = (data.accounts || [])
@@ -450,7 +429,7 @@ app.get('/api/newsletter/subscribers', (request, response) => {
     response.json({ subscribers });
 });
 
-app.delete('/api/newsletter/subscribers/:accountId', (request, response) => {
+api('delete', '/api/newsletter/subscribers/:accountId', (request, response) => {
     const requester = requireAccount(request, response, true);
     if (!requester) return;
     const data = readData();
@@ -462,7 +441,7 @@ app.delete('/api/newsletter/subscribers/:accountId', (request, response) => {
     response.json({ ok: true });
 });
 
-app.post('/api/newsletter/unsubscribe-request', async (request, response) => {
+api('post', '/api/newsletter/unsubscribe-request', async (request, response) => {
     const email = normalizeEmail(request.body?.email);
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return response.status(400).json({ error: 'Enter a valid email address.' });
     const key = request.ip || 'unknown';
@@ -482,7 +461,7 @@ app.post('/api/newsletter/unsubscribe-request', async (request, response) => {
     response.json({ message: 'If that email is subscribed, we sent a link to remove it from the newsletter.' });
 });
 
-app.post('/api/newsletter/unsubscribe', (request, response) => {
+api('post', '/api/newsletter/unsubscribe', (request, response) => {
     const data = readData();
     const token = String(request.body?.token || '');
     let targetAccount;
@@ -506,7 +485,7 @@ app.post('/api/newsletter/unsubscribe', (request, response) => {
     response.json({ ok: true });
 });
 
-app.post('/api/newsletter/subscription', (request, response) => {
+api('post', '/api/newsletter/subscription', (request, response) => {
     const account = requireAccount(request, response);
     if (!account) return;
     if (typeof request.body?.subscribed !== 'boolean') return response.status(400).json({ error: 'Choose whether to subscribe or unsubscribe.' });
@@ -518,7 +497,7 @@ app.post('/api/newsletter/subscription', (request, response) => {
     response.json({ subscribed: targetAccount.newsletterOptIn });
 });
 
-app.get('/api/accounts', (request, response) => {
+api('get', '/api/accounts', (request, response) => {
     if (!requireAccount(request, response, true)) return;
     const data = readData();
     const accounts = (data.accounts || [])
@@ -533,7 +512,7 @@ app.get('/api/accounts', (request, response) => {
     response.json({ accounts });
 });
 
-app.delete('/api/accounts/:accountId', (request, response) => {
+api('delete', '/api/accounts/:accountId', (request, response) => {
     const requester = requireAccount(request, response, true);
     if (!requester) return;
     if (!configuredAdminEmails.includes(normalizeEmail(requester.email))) return response.status(403).json({ error: 'Only the owner can delete account data.' });
@@ -544,7 +523,7 @@ app.delete('/api/accounts/:accountId', (request, response) => {
     response.json({ ok: true, email: result.email });
 });
 
-app.post('/api/newsletter', async (request, response) => {
+api('post', '/api/newsletter', async (request, response) => {
     const account = requireAccount(request, response, true);
     if (!account) return;
     const subject = String(request.body?.subject || '').trim();
@@ -572,7 +551,7 @@ app.post('/api/newsletter', async (request, response) => {
     response.json({ ok: true, sent, failed, total: recipients.length });
 });
 
-app.post('/api/admins', (request, response) => {
+api('post', '/api/admins', (request, response) => {
     if (!requireAccount(request, response, true)) return;
     const email = normalizeEmail(request.body?.email);
     if (!email) return response.status(400).json({ error: 'A valid email is required.' });
@@ -583,7 +562,7 @@ app.post('/api/admins', (request, response) => {
     writeData(data); response.status(201).json({ ok: true });
 });
 
-app.delete('/api/admins/:accountId', (request, response) => {
+api('delete', '/api/admins/:accountId', (request, response) => {
     const requester = requireAccount(request, response, true);
     if (!requester) return;
     if (!configuredAdminEmails.includes(normalizeEmail(requester.email))) return response.status(403).json({ error: 'Only the owner can remove administrators.' });
@@ -598,7 +577,7 @@ app.delete('/api/admins/:accountId', (request, response) => {
 });
 
 app.use(express.urlencoded({ extended: false }));
-app.post('/api/contact', async (request, response) => {
+api('post', '/api/contact', async (request, response) => {
     const signedInAccount = requireAccount(request, response);
     if (!signedInAccount) return;
     const body = request.body || {};
@@ -681,7 +660,7 @@ app.post('/api/contact', async (request, response) => {
     }
 });
 
-app.get('/api/contact-requests', (request, response) => {
+api('get', '/api/contact-requests', (request, response) => {
     if (!requireAccount(request, response, true)) return;
     const data = readData();
     response.json({ requests: (data.contactRequests || []).map(item => ({
@@ -691,7 +670,7 @@ app.get('/api/contact-requests', (request, response) => {
     })).sort((first, second) => new Date(first.createdAt) - new Date(second.createdAt)) });
 });
 
-app.get('/api/my-workspace', (request, response) => {
+api('get', '/api/my-workspace', (request, response) => {
     const account = requireAccount(request, response);
     if (!account) return;
     const email = normalizeEmail(account.email);
@@ -706,7 +685,7 @@ app.get('/api/my-workspace', (request, response) => {
     response.json({ requests });
 });
 
-app.patch('/api/contact-requests/:id', (request, response) => {
+api('patch', '/api/contact-requests/:id', (request, response) => {
     if (!requireAccount(request, response, true)) return;
     const status = String(request.body?.status || '').toLowerCase();
     if (status && !['pending', 'confirmed', 'completed'].includes(status)) return response.status(400).json({ error: 'Choose pending, confirmed, or completed.' });
@@ -733,7 +712,7 @@ app.patch('/api/contact-requests/:id', (request, response) => {
     response.json({ request: contactRequest });
 });
 
-app.delete('/api/contact-requests/:id', (request, response) => {
+api('delete', '/api/contact-requests/:id', (request, response) => {
     if (!requireAccount(request, response, true)) return;
     const data = readData();
     const requests = data.contactRequests || [];
@@ -744,7 +723,7 @@ app.delete('/api/contact-requests/:id', (request, response) => {
     response.json({ ok: true });
 });
 
-app.delete('/api/my-workspace/notifications/:notificationId', (request, response) => {
+api('delete', '/api/my-workspace/notifications/:notificationId', (request, response) => {
     const account = requireAccount(request, response);
     if (!account) return;
     const data = readData();
@@ -765,4 +744,15 @@ app.delete('/api/my-workspace/notifications/:notificationId', (request, response
 
 app.use('/api', (_request, response) => response.status(404).json({ error: 'API endpoint not found.' }));
 app.get('*', (_request, response) => response.status(404).sendFile(path.join(__dirname, '404.html')));
-app.listen(port, '0.0.0.0', () => console.log(`Crimson Creations is running on port ${port}`));
+async function start() {
+    if (process.env.RENDER && !process.env.DATABASE_URL) {
+        throw new Error('Set DATABASE_URL to an external PostgreSQL database before starting on Render. Local files do not survive redeploys.');
+    }
+    await store.initialize();
+    app.listen(port, '0.0.0.0', () => console.log(`Crimson Creations is running on port ${port}`));
+}
+start().catch(error => {
+    console.error(process.env.DATABASE_URL ? `Database startup failed (${error.code || error.name}). Check DATABASE_URL and database availability.` : error.message);
+    process.exitCode = 1;
+    store.close();
+});

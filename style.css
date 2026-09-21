@@ -1365,11 +1365,12 @@ body > .touch-trail-canvas {
     pointer-events: none;
     opacity: 0.3;
     mix-blend-mode: screen;
-    transition: opacity 0.45s ease;
+    transition: none;
 }
 
 body > .touch-trail-canvas.is-fading {
     opacity: 0;
+    transition: opacity 0.45s ease;
 }
 
 .guidance-tabs {
@@ -2815,6 +2816,7 @@ textarea:focus {
 
     .cursor-glow.is-touching {
         opacity: 0.3;
+        transition: none;
     }
 
     body > .touch-trail-canvas {
