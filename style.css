@@ -2980,3 +2980,19 @@ textarea:focus {
         padding: 20px;
     }
 }
+.account-recovery {
+    margin-top: 1.5rem;
+}
+.account-recovery summary {
+    cursor: pointer;
+    padding: 0.75rem 0;
+}
+#backup-form input[type="file"] {
+    max-width: 100%;
+    min-width: 0;
+}
+#restore-review {
+    padding: 1rem;
+    border: 1px solid var(--accent, #e1061b);
+    border-radius: 12px;
+}

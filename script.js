@@ -477,6 +477,8 @@ function renderNewsletterPreference() {
         : 'You are not subscribed to Crimson Creations newsletter emails.';
 }
 
+let passwordResetRequested = new URLSearchParams(window.location.hash.slice(1)).has('reset');
+
 function showPortalPreview() {
     const account = getAccount() || { firstName: 'Client', lastName: '', email: 'Not connected' };
     const fullName = `${account.firstName || ''} ${account.lastName || ''}`.trim() || 'Client';
@@ -489,6 +491,8 @@ function showPortalPreview() {
     document.querySelectorAll('[data-client-initials]').forEach(element => element.textContent = accountInitials(account));
     document.querySelectorAll('[data-client-email]').forEach(element => element.textContent = account.email || 'Not connected');
     document.querySelectorAll('[data-account-role]').forEach(element => element.textContent = isOwnerAccount(account) ? 'Owner' : isAdminAccount(account) ? 'Administrator' : 'Client account');
+    const backupTools = document.getElementById('backup-tools');
+    if (backupTools) backupTools.hidden = !isOwnerAccount(account);
     renderNewsletterPreference();
     const adminPanel = document.getElementById('admin-panel');
     if (adminPanel) adminPanel.hidden = !isAdminAccount(account);
@@ -539,7 +543,7 @@ async function loadCurrentSession() {
         currentSession = result.account;
         updateCommentAccess();
         updateRequestAccount();
-        if (currentSession) {
+        if (currentSession && !passwordResetRequested) {
             showPortalPreview();
         }
     } catch {

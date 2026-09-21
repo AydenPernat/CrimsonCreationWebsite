@@ -24,6 +24,7 @@ const authAttempts = new Map();
 const contactAttempts = new Map();
 const unsubscribeAttempts = new Map();
 
+app.use('/api/backups', express.json({ limit: '13mb' }));
 app.use(express.json({ limit: '100kb' }));
 app.use((_request, response, next) => {
     response.setHeader('X-Content-Type-Options', 'nosniff');
@@ -59,7 +60,7 @@ Object.entries(cleanPageRoutes).forEach(([cleanPath, fileName]) => {
     if (cleanPath === '/') return;
     app.get(`/${fileName}`, (request, response) => response.redirect(301, `${cleanPath}${request.url.slice(fileName.length + 1)}`));
 });
-['style.css', 'script.js', 'success.js'].forEach(fileName => {
+['style.css', 'script.js', 'success.js', 'portal-tools.js'].forEach(fileName => {
     app.get(`/${fileName}`, (_request, response) => response.sendFile(path.join(__dirname, fileName)));
 });
 app.use('/img', express.static(path.join(__dirname, 'img')));
@@ -84,7 +85,7 @@ async function sendVerificationEmail(email, token) {
     const baseUrl = process.env.CRIMSON_PUBLIC_URL || `http://localhost:${port}`;
     const verificationUrl = `${baseUrl}/api/auth/verify?token=${encodeURIComponent(token)}`;
     const result = await fetch('https://api.resend.com/emails', {
-        method: 'POST',
+        method: 'POST', signal: AbortSignal.timeout(15000),
         headers: { Authorization: `Bearer ${process.env.RESEND_API_KEY}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({
             from: process.env.RESEND_FROM_EMAIL || 'Crimson Creations <onboarding@resend.dev>',
@@ -214,6 +215,8 @@ function allowAuthAttempt(request, response) {
     if (attempts.length >= 10) { response.status(429).json({ error: 'Too many attempts. Please try again later.' }); return false; }
     attempts.push(now); authAttempts.set(key, attempts); return true;
 }
+
+require('./account-tools.cjs').registerAccountTools({ api, readData, writeData, requireAccount, normalizeEmail, hashToken, hashPassword, passwordMatches, configuredAdminEmails, sendVerificationEmail, secureCookie, port });
 
 api('get', '/api/auth/me', (request, response) => response.json({ account: publicAccount(currentAccount(request)) }));
 

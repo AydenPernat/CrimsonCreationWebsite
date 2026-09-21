@@ -7,7 +7,7 @@
     <title>Crimson Creations</title>
     <meta name="description" content="The Crimson Creations client portal for checking website project progress.">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-    <link rel="stylesheet" href="style.css?v=16">
+    <link rel="stylesheet" href="style.css?v=17">
 </head>
 
 <body>
@@ -58,6 +58,28 @@
                         <button class="btn btn-primary" type="submit">Sign in</button>
                         <button class="btn btn-secondary" id="portal-signup" type="button">Create an account</button>
                         <p class="portal-status" id="portal-status" aria-live="polite">Your account and workspace are securely managed by this site.</p>
+                    </form>
+                    <details class="account-recovery">
+                        <summary>Forgot your password or verification email?</summary>
+                        <form class="portal-form" id="recovery-form">
+                            <div class="field"><label for="recovery-email">Account email</label><input id="recovery-email" type="email" autocomplete="email" required maxlength="254"></div>
+                            <button class="btn btn-secondary" type="submit" name="action" value="forgot-password">Email a password reset link</button>
+                            <button class="btn btn-secondary" type="submit" name="action" value="resend-verification">Resend verification email</button>
+                            <p class="portal-status" id="recovery-status" role="status"></p>
+                        </form>
+                    </details>
+                </div>
+
+                <div class="portal-card" id="reset-panel" hidden>
+                    <p class="eyebrow">Account recovery</p>
+                    <h2>Choose a new password</h2>
+                    <p>Reset links expire after 30 minutes and can only be used once.</p>
+                    <form class="portal-form" id="reset-form">
+                        <div class="field"><label for="reset-password">New password</label><input id="reset-password" type="password" autocomplete="new-password" minlength="8" maxlength="128" required></div>
+                        <div class="field"><label for="reset-confirm">Confirm new password</label><input id="reset-confirm" type="password" autocomplete="new-password" minlength="8" maxlength="128" required></div>
+                        <button class="btn btn-primary" type="submit">Update password</button>
+                        <a class="btn btn-secondary" href="/portal">Back to sign in</a>
+                        <p class="portal-status" id="reset-status" role="status"></p>
                     </form>
                 </div>
 
@@ -334,6 +356,26 @@
                                 <p class="portal-status" id="account-management-status" aria-live="polite"></p>
                             </div>
                         </details>
+                        <details class="admin-tool-section" id="backup-tools" hidden>
+                            <summary><span><strong>Backup and restore</strong><small>Owner only · encrypted copies of your site data</small></span><i class="fa-solid fa-chevron-down" aria-hidden="true"></i></summary>
+                            <div class="admin-tool-content">
+                                <p>Download a backup after important changes and keep it somewhere safe. It includes accounts, projects, feedback, subscriptions, and requests. Active sign-ins and email links are excluded.</p>
+                                <form class="portal-form" id="backup-form">
+                                    <div class="field"><label for="backup-password">Your current account password</label><input id="backup-password" type="password" autocomplete="current-password" maxlength="128" required></div>
+                                    <div class="field"><label for="backup-passphrase">Backup passphrase</label><input id="backup-passphrase" type="password" autocomplete="off" minlength="12" maxlength="256" required aria-describedby="backup-passphrase-help"><small id="backup-passphrase-help">Use at least 12 characters. Keep this separately from the file; a lost passphrase cannot be recovered. To restore, enter the passphrase used when that file was created.</small></div>
+                                    <button class="btn btn-primary" id="backup-download" type="button">Download encrypted backup</button>
+                                    <div class="field"><label for="backup-file">Restore from a backup file</label><input id="backup-file" type="file" accept=".json,application/json"><small>Choose a Crimson encrypted backup, up to 12 MB.</small></div>
+                                    <button class="btn btn-secondary" id="backup-preview" type="button">Preview backup</button>
+                                    <div id="restore-review" hidden>
+                                        <p id="restore-summary"></p>
+                                        <p>Restoring replaces your current site data and signs everyone out. Current passwords for existing accounts are kept. A backup of the current data will download first, using the passphrase above.</p>
+                                        <div class="field"><label for="restore-confirm">Type RESTORE to replace the site data</label><input id="restore-confirm" type="text" autocomplete="off"></div>
+                                        <button class="btn btn-secondary" id="backup-restore" type="button">Restore this backup</button>
+                                    </div>
+                                    <p class="portal-status" id="backup-status" role="status"></p>
+                                </form>
+                            </div>
+                        </details>
                         <details class="admin-tool-section admin-requests-tool">
                             <summary>
                                 <span>
@@ -400,7 +442,8 @@
             <span>(c) 2026 Crimson Creations. All rights reserved.</span>
         </div>
     </footer>
-<script src="script.js?v=40"></script>
+<script src="script.js?v=41"></script>
+    <script src="portal-tools.js?v=1"></script>
 </body>
 
 </html>
