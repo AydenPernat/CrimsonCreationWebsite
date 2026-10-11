@@ -75,35 +75,38 @@
   },
   "contactRequests": [
     {
-      "id": "056d4a3bb688d1ed3cd75214",
-      "accountEmail": "",
-      "name": "f",
-      "business": "f",
-      "email": "f@f",
-      "phone": "f",
-      "budget": "f",
-      "pages": "f",
-      "details": "f",
-      "projectGoal": "f",
-      "projectStyle": "f",
-      "projectPages": "f",
-      "projectTimeline": "f",
-      "status": "pending",
-      "progress": 0,
-      "notifications": [],
-      "createdAt": "2026-09-17T00:08:27.635Z"
+      "id": "dfe4670b31b71a678d80ef0e",
+      "accountEmail": "crimsoncreationgames@gmail.com",
+      "name": "Ayden Pernat",
+      "business": "asdf",
+      "email": "crimsoncreationgames@gmail.com",
+      "phone": "2622124751",
+      "budget": "1600",
+      "pages": "7",
+      "details": "test",
+      "projectGoal": "",
+      "projectStyle": "",
+      "projectPages": "",
+      "projectTimeline": "",
+      "status": "confirmed",
+      "progress": 27,
+      "notifications": [
+        {
+          "id": "4c2cad8ba1152879fcb8c3cb",
+          "message": "done with the skeleton of the website",
+          "progress": 27,
+          "createdAt": "2026-10-11T20:14:35.163Z"
+        }
+      ],
+      "createdAt": "2026-10-11T20:13:05.014Z"
     }
   ],
   "sessions": [
     {
       "accountId": "3442857e4ec85aab78866af2",
-      "tokenHash": "ba6764cd5302f6a0ac6e75c3a5b04e1ebb4a9c60983a375e884dd644c0dff83c",
-      "expiresAt": 1790208561973
-    },
-    {
-      "accountId": "3442857e4ec85aab78866af2",
-      "tokenHash": "a31152ccbb38d379ce5040403a7f73deecf3a8c3ac83fcf5a203b3675ec96a1c",
-      "expiresAt": 1790369374361
+      "tokenHash": "9a0db59226b8f55eb95647174945707b32a8c4fed27cbaf58b88d07a89da7d03",
+      "tabHash": "f7fa703425c53886f34f9450acaf379945c131e25598b413d047cee5ef3db6fc",
+      "expiresAt": 1792351074056
     }
   ]
 }

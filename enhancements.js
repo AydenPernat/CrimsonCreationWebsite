@@ -141,8 +141,9 @@ document.getElementById('portal-signout')?.addEventListener('click', () => { for
         if (pending) return;
         const provider = button.dataset.unlinkProvider;
         const name = provider === 'google' ? 'Google' : 'GitHub';
-        if (!await showSiteDialog({ title: `Unlink ${name}?`, message: `You will no longer be able to sign into this portal using the connected ${name} account. Your portal account and projects will stay here.`, confirmLabel: `Unlink ${name}` })) return;
         pending = true;
+        const email = button.closest('[data-provider-connection]')?.querySelector('[data-linked-email]')?.textContent;
+        if (!await showSiteDialog({ title: `Unlink ${name}?`, message: `Disconnect ${email || 'your connected account'} from ${name}? You will no longer be able to sign into this portal using that account. Your portal account and projects will stay here.`, confirmLabel: `Unlink ${name}`, cancelLabel: 'Keep connected' })) { pending = false; return; }
         document.querySelectorAll('[data-unlink-provider]').forEach(item => { item.disabled = true; });
         status.textContent = `Unlinking ${name}…`;
         try {

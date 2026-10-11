@@ -188,15 +188,43 @@ function passwordMatches(password, account) {
     return actual.length === expected.length && crypto.timingSafeEqual(actual, expected);
 }
 
+function revisionBalance(account) {
+    return Number.isSafeInteger(account?.revisions) && account.revisions >= 0 ? account.revisions : 0;
+}
+
+function accountSummary(account, data) {
+    const email = normalizeEmail(account.email);
+    const requests = (data.contactRequests || []).filter(item => item.accountId === account.id || normalizeEmail(item.accountEmail || item.email) === email);
+    const latest = [...requests].sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)))[0];
+    const owner = configuredAdminEmails.includes(email);
+    return {
+        accountId: account.id, name: `${account.firstName || 'Account'} ${account.lastName || ''}`.trim(), email,
+        role: owner ? 'owner' : data.admins.some(item => item.accountId === account.id) ? 'admin' : 'client',
+        verifiedAt: account.verifiedAt || null, createdAt: account.createdAt || null, lastSignedInAt: account.lastSignedInAt || null,
+        newsletterOptIn: account.newsletterOptIn === true, revisions: revisionBalance(account),
+        completedWebsites: requests.filter(item => item.status === 'completed' && item.kind !== 'revision').length,
+        activeWebsites: requests.filter(item => item.status !== 'completed' && item.kind !== 'revision').length,
+        revisionRequests: requests.filter(item => item.kind === 'revision').length,
+        portfolioWebsites: data.projects.filter(item => item.projectType !== 'game' && normalizeEmail(item.ownerEmail) === email).length,
+        business: latest?.business || '', phone: latest?.phone || '',
+        connectedProviders: { google: Boolean(account.oauthGoogleId), github: Boolean(account.oauthGithubId) },
+        providerEmails: { google: account.oauthGoogleEmail || '', github: account.oauthGithubEmail || '' },
+        hasPassword: account.passwordSet !== false && Boolean(account.passwordHash || account.hash)
+    };
+}
+
 function publicAccount(account) {
     if (!account) return null;
     const email = normalizeEmail(account.email);
     const isOwner = configuredAdminEmails.includes(email);
     const isAdmin = isOwner || readData().admins.some(admin => admin.accountId === account.id);
-    return { firstName: account.firstName, lastName: account.lastName, email, role: isOwner ? 'owner' : isAdmin ? 'admin' : 'client', newsletterOptIn: account.newsletterOptIn === true,
+    const summary = accountSummary(account, readData());
+    return { id: account.id, firstName: account.firstName, lastName: account.lastName, email, role: isOwner ? 'owner' : isAdmin ? 'admin' : 'client', newsletterOptIn: account.newsletterOptIn === true,
         connectedProviders: { google: Boolean(account.oauthGoogleId), github: Boolean(account.oauthGithubId) },
         providerEmails: { google: account.oauthGoogleEmail || '', github: account.oauthGithubEmail || '' },
-        needsPassword: account.passwordSet === false || !(account.passwordHash || account.hash) };
+        needsPassword: account.passwordSet === false || !(account.passwordHash || account.hash),
+        revisions: revisionBalance(account),
+        business: summary.business, phone: summary.phone };
 }
 
 function deleteAccountData(data, accountId) {
@@ -239,6 +267,8 @@ function createSession(account, { tabHash, browserToken = '' } = {}) {
     const token = /^[a-f0-9]{64}$/.test(browserToken) ? browserToken : crypto.randomBytes(32).toString('hex');
     const data = readData();
     data.sessions = (data.sessions || []).filter(session => session.expiresAt > Date.now() && !(session.tokenHash === hashToken(token) && session.tabHash === tabHash));
+    const storedAccount = data.accounts.find(item => item.id === account.id);
+    if (storedAccount) storedAccount.lastSignedInAt = new Date().toISOString();
     data.sessions.push({ accountId: account.id, tokenHash: hashToken(token), tabHash, expiresAt: Date.now() + 7 * 24 * 60 * 60 * 1000 });
     writeData(data);
     return token;
@@ -272,7 +302,7 @@ api('post', '/api/auth/signup', async (request, response) => {
     if (!firstName || !lastName || !normalizedEmail || typeof password !== 'string' || password.length < 8) return response.status(400).json({ error: 'Use a name, valid email, and password with at least 8 characters.' });
     if (readData().accounts.some(account => normalizeEmail(account.email) === normalizedEmail)) return response.status(409).json({ error: 'That email already has an account.' });
     const verificationToken = crypto.randomBytes(32).toString('hex');
-    const account = { id: crypto.randomBytes(12).toString('hex'), firstName: String(firstName).trim(), lastName: String(lastName).trim(), email: normalizedEmail, passwordSet: true, newsletterOptIn: request.body?.newsletterOptIn === true, verifiedAt: null, verificationTokenHash: hashToken(verificationToken), verificationExpiresAt: Date.now() + 24 * 60 * 60 * 1000, ...hashPassword(password) };
+    const account = { id: crypto.randomBytes(12).toString('hex'), firstName: String(firstName).trim(), lastName: String(lastName).trim(), email: normalizedEmail, createdAt: new Date().toISOString(), revisions: 0, passwordSet: true, newsletterOptIn: request.body?.newsletterOptIn === true, verifiedAt: null, verificationTokenHash: hashToken(verificationToken), verificationExpiresAt: Date.now() + 24 * 60 * 60 * 1000, ...hashPassword(password) };
     let verificationResult;
     try { verificationResult = await sendVerificationEmail(normalizedEmail, verificationToken); } catch { verificationResult = { ok: false, error: 'The email service could not be reached.' }; }
     if (!verificationResult.ok) return response.status(503).json({ error: verificationResult.error });
@@ -558,15 +588,23 @@ api('get', '/api/accounts', (request, response) => {
     if (!requireAccount(request, response, true)) return;
     const data = readData();
     const accounts = (data.accounts || [])
-        .map(account => ({
-            accountId: account.id,
-            name: `${account.firstName || 'Account'} ${account.lastName || ''}`.trim(),
-            email: normalizeEmail(account.email),
-            verifiedAt: account.verifiedAt || null,
-            newsletterOptIn: account.newsletterOptIn === true
-        }))
+        .map(account => accountSummary(account, data))
         .sort((first, second) => `${first.name} ${first.email}`.localeCompare(`${second.name} ${second.email}`));
     response.json({ accounts });
+});
+
+api('patch', '/api/accounts/:accountId/revisions', (request, response) => {
+    if (!requireAccount(request, response, true)) return;
+    const delta = request.body?.delta;
+    if (delta !== 1 && delta !== -1) return response.status(400).json({ error: 'Add or subtract one revision at a time.' });
+    const data = readData();
+    const account = data.accounts.find(item => item.id === request.params.accountId);
+    if (!account) return response.status(404).json({ error: 'Account not found.' });
+    const balance = revisionBalance(account) + delta;
+    if (balance < 0 || balance > 10000) return response.status(409).json({ error: balance < 0 ? 'This account has no revisions to subtract.' : 'The revision limit has been reached.' });
+    account.revisions = balance;
+    writeData(data);
+    response.json({ account: accountSummary(account, data) });
 });
 
 api('delete', '/api/accounts/:accountId', (request, response) => {
@@ -638,9 +676,20 @@ api('post', '/api/contact', async (request, response) => {
     const signedInAccount = currentAccount(request);
     const body = request.body || {};
     if (body.botcheck || body.website) return response.json({ success: true, message: 'Request received.' });
-    const name = String(body.name || '').trim();
-    const business = String(body.business || '').trim();
-    const email = normalizeEmail(body.email);
+    const isRevision = body.request_kind === 'revision';
+    const data = readData();
+    let revisionAccount;
+    if (isRevision) {
+        if (!signedInAccount) return response.status(401).json({ error: 'Sign in to use a revision.' });
+        revisionAccount = data.accounts.find(item => item.id === signedInAccount.id);
+        if (!/^[a-f0-9-]{36}$/.test(String(body.revision_request_id || ''))) return response.status(400).json({ error: 'Reload the revision form and try again.' });
+        const existing = data.contactRequests.find(item => item.accountId === revisionAccount?.id && item.kind === 'revision' && item.revisionRequestId === body.revision_request_id);
+        if (existing) return response.json({ success: true, message: 'Your revision request has already been received.', revisions: revisionBalance(revisionAccount) });
+        if (revisionBalance(revisionAccount) < 1) return response.status(409).json({ error: 'You have no revisions available. Add revision support before sending a revision request.' });
+    }
+    const name = isRevision ? `${revisionAccount.firstName || ''} ${revisionAccount.lastName || ''}`.trim() : String(body.name || '').trim();
+    const business = String(body.business || (isRevision ? 'Website revision' : '')).trim();
+    const email = isRevision ? normalizeEmail(revisionAccount.email) : normalizeEmail(body.email);
     const details = String(body.details || '').trim();
     if (!name || !business || !details || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
         return response.status(400).json({ error: 'Add your name, business, valid email, and project details.' });
@@ -652,10 +701,12 @@ api('post', '/api/contact', async (request, response) => {
     if (attempts.length >= 5) return response.status(429).json({ message: 'Too many requests. Please try again later.' });
     attempts.push(now); contactAttempts.set(key, attempts);
     if (body.botcheck) return response.json({ success: true });
-    const data = readData();
     const contactRequest = {
         id: crypto.randomBytes(12).toString('hex'),
         accountEmail: normalizeEmail(signedInAccount?.email),
+        accountId: signedInAccount?.id || '',
+        kind: isRevision ? 'revision' : 'website',
+        ...(isRevision ? { revisionRequestId: body.revision_request_id } : {}),
         name: name.slice(0, 120),
         business: business.slice(0, 160),
         email: email.slice(0, 200),
@@ -672,14 +723,17 @@ api('post', '/api/contact', async (request, response) => {
         notifications: [],
         createdAt: new Date().toISOString()
     };
+    if (isRevision) revisionAccount.revisions = revisionBalance(revisionAccount) - 1;
     data.contactRequests.push(contactRequest);
     writeData(data);
+    const revisionResult = isRevision ? { revisions: revisionAccount.revisions } : {};
     const recipient = configuredAdminEmails[0];
     if (!process.env.RESEND_API_KEY || !process.env.RESEND_FROM_EMAIL || !recipient) {
-        return response.status(202).json({ success: true, message: 'Your request was saved. Email notifications are not configured yet.' });
+        return response.status(202).json({ success: true, message: 'Your request was saved. Email notifications are not configured yet.', ...revisionResult });
     }
     const text = [
         `Name: ${contactRequest.name}`,
+        `Request: ${isRevision ? 'Use one revision round' : 'New website'}`,
         `Business: ${contactRequest.business}`,
         `Email: ${contactRequest.email}`,
         `Phone: ${contactRequest.phone || 'Not provided'}`,
@@ -702,7 +756,7 @@ api('post', '/api/contact', async (request, response) => {
                 from: process.env.RESEND_FROM_EMAIL,
                 to: [recipient],
                 reply_to: contactRequest.email,
-                subject: `New website request from ${contactRequest.name}`,
+                subject: `${isRevision ? 'Revision request' : 'New website request'} from ${contactRequest.name}`,
                 text,
                 html
             })
@@ -710,12 +764,12 @@ api('post', '/api/contact', async (request, response) => {
         const body = await result.json().catch(() => ({}));
         if (!result.ok) {
             console.error(`Resend rejected contact request: ${body.message || `HTTP ${result.status}`}`);
-            return response.status(202).json({ success: true, message: 'Your request was saved, but the email notification could not be delivered.' });
+            return response.status(202).json({ success: true, message: 'Your request was saved, but the email notification could not be delivered.', ...revisionResult });
         }
-        response.json({ success: true, message: 'Request sent.' });
+        response.json({ success: true, message: isRevision ? 'Revision request sent. One revision has been used.' : 'Request sent.', ...revisionResult });
     } catch (error) {
         console.error(`Resend contact request failed: ${error.message}`);
-        response.status(202).json({ success: true, message: 'Your request was saved, but the email notification is temporarily unavailable.' });
+        response.status(202).json({ success: true, message: 'Your request was saved, but the email notification is temporarily unavailable.', ...revisionResult });
     }
 });
 
@@ -741,7 +795,7 @@ api('get', '/api/my-workspace', (request, response) => {
             progress: Number.isFinite(Number(item.progress)) ? Math.max(0, Math.min(100, Number(item.progress))) : 0,
             notifications: Array.isArray(item.notifications) ? item.notifications : []
         }));
-    response.json({ requests });
+    response.json({ requests, revisions: revisionBalance(account) });
 });
 
 api('patch', '/api/contact-requests/:id', (request, response) => {

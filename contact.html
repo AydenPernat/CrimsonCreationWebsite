@@ -83,12 +83,15 @@
 
                 <div class="form-card reveal-on-scroll">
                     <p class="eyebrow">Request form</p>
-                    <h2 class="section-title" style="font-size: 2rem;">Send your project details</h2>
-                    <p>Send your brief now — no account needed. You can create a client portal account afterward to follow your project.</p>
+                    <h2 class="section-title" data-contact-title style="font-size: 2rem;">Send your project details</h2>
+                    <p data-contact-description>Send your brief now — no account needed. You can create a client portal account afterward to follow your project.</p>
 
 <form id="estimate-form" action="/api/contact" method="POST" autocomplete="on">
                         <input type="hidden" name="subject" value="New Crimson Creations project request">
                         <input type="hidden" name="from_name" value="Crimson Creations website">
+                        <input type="hidden" name="request_kind" value="website">
+                        <input type="hidden" name="revision_request_id" value="">
+                        <p class="revision-request-note" id="revision-request-note" role="status" hidden></p>
                         <div class="form-honeypot" aria-hidden="true"><label for="contact-website">Leave this field empty</label><input id="contact-website" name="website" type="text" tabindex="-1" autocomplete="off"></div>
                         <div class="form-grid">
                             <div class="field">

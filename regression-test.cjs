@@ -81,7 +81,7 @@ test('quick touch swipes survive pointercancel, viewport resize, and a second fi
     const cursorGlow = { classList: classes(), style: { setProperty() {} } };
     const window = {
         ontouchstart: null, innerWidth: 390, innerHeight: 844, devicePixelRatio: 2,
-        matchMedia: () => ({ matches: false }), clearTimeout() {}, setTimeout: () => 1,
+        matchMedia: () => ({ matches: false, addEventListener() {} }), clearTimeout() {}, setTimeout: () => 1,
         addEventListener(name, fn, options) { (listeners[name] ||= []).push(fn); if (name.startsWith('touch')) assert.equal(options.passive, true); }
     };
     vm.runInNewContext(source.slice(source.indexOf('if (cursorGlow) {'), source.indexOf('const guidanceCopy')), {

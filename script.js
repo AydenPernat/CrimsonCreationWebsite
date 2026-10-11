@@ -3,6 +3,41 @@ const menuIcon = document.getElementById('bar');
 const nav = document.getElementById('navbar');
 const header = document.querySelector('.site-header');
 
+// Start at the top center; introduce the opposite streak after half a lap.
+if (nav && typeof ResizeObserver !== 'undefined') {
+    nav.querySelectorAll('a.active').forEach(link => {
+        const svgNamespace = 'http://www.w3.org/2000/svg';
+        const orbit = document.createElementNS(svgNamespace, 'svg');
+        orbit.classList.add('nav-selected-orbit');
+        orbit.setAttribute('aria-hidden', 'true');
+        orbit.setAttribute('focusable', 'false');
+        const trails = [];
+        for (let streak = 0; streak < 2; streak++) {
+            for (let index = 0; index < 40; index++) {
+                const part = document.createElementNS(svgNamespace, 'path');
+                part.setAttribute('pathLength', '100');
+                part.dataset.streak = String(streak);
+                part.style.setProperty('--trail-index', String(index));
+                part.setAttribute('stroke-opacity', String((1 - index / 39) ** 1.8));
+                orbit.append(part);
+                trails.push(part);
+            }
+        }
+        link.append(orbit);
+        const resizeOrbit = () => {
+            const width = link.clientWidth;
+            const height = link.clientHeight;
+            const radius = Math.max(0, Math.min(width, height) / 2 - 1);
+            orbit.setAttribute('viewBox', `0 0 ${width} ${height}`);
+            const right = width - 1;
+            const bottom = height - 1;
+            const route = `M ${width / 2} 1 H ${right - radius} A ${radius} ${radius} 0 0 1 ${right} ${1 + radius} V ${bottom - radius} A ${radius} ${radius} 0 0 1 ${right - radius} ${bottom} H ${1 + radius} A ${radius} ${radius} 0 0 1 1 ${bottom - radius} V ${1 + radius} A ${radius} ${radius} 0 0 1 ${1 + radius} 1 Z`;
+            trails.forEach(part => part.setAttribute('d', route));
+        };
+        resizeOrbit();
+        new ResizeObserver(resizeOrbit).observe(link);
+    });
+}
 // Keep internal navigation readable while preserving the separate page files.
 const cleanPagePaths = {
     '/index.html': '/',
@@ -383,6 +418,26 @@ if (cursorGlow) {
         cursorGlow.style.setProperty('--cursor-x', `${event.clientX}px`);
         cursorGlow.style.setProperty('--cursor-y', `${event.clientY}px`);
     }, { passive: true });
+
+    const desktopBloom = window.matchMedia('(min-width: 821px) and (hover: hover) and (pointer: fine)');
+    const bloomMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+    let bloomClickAnimation;
+    window.addEventListener('pointerdown', event => {
+        if (event.pointerType !== 'mouse' || event.button !== 0 || !desktopBloom.matches || bloomMotion.matches) return;
+        cursorGlow.style.setProperty('--cursor-x', `${event.clientX}px`);
+        cursorGlow.style.setProperty('--cursor-y', `${event.clientY}px`);
+        bloomClickAnimation?.cancel();
+        // Resize the gradient so its center and mouse tracking stay stable.
+        bloomClickAnimation = cursorGlow.animate([
+            { backgroundSize: '100% 100%', offset: 0 },
+            { backgroundSize: '88% 88%', offset: .24 },
+            { backgroundSize: '104% 104%', offset: .65 },
+            { backgroundSize: '100% 100%', offset: 1 }
+        ], { duration: 430, easing: 'cubic-bezier(.2, .8, .2, 1)' });
+    }, { passive: true });
+    const stopBloomClick = () => bloomClickAnimation?.cancel();
+    desktopBloom.addEventListener('change', stopBloomClick);
+    bloomMotion.addEventListener('change', stopBloomClick);
 }
 
 const guidanceCopy = document.getElementById('guidance-copy');
@@ -495,27 +550,34 @@ function renderNewsletterPreference() {
 
 let passwordResetRequested = new URLSearchParams(window.location.hash.slice(1)).has('reset');
 
+function renderPortalRevisions() {
+    const balance = Number.isSafeInteger(getAccount()?.revisions) && getAccount().revisions > 0 ? getAccount().revisions : 0;
+    document.querySelectorAll('[data-revision-balance]').forEach(element => { element.textContent = String(balance); });
+    document.querySelectorAll('[data-use-revision]').forEach(link => { link.hidden = balance === 0; });
+}
+
 function showPortalPreview() {
     const account = getAccount() || { firstName: 'Client', lastName: '', email: 'Not connected' };
     const fullName = `${account.firstName || ''} ${account.lastName || ''}`.trim() || 'Client';
     const providers = account.connectedProviders || {};
-    const connected = document.getElementById('connected-providers');
-    if (connected) connected.textContent = ['google', 'github'].filter(key => providers[key]).map(key => {
-        const email = account.providerEmails?.[key];
-        return (key === 'google' ? 'Google' : 'GitHub') + ' connected ✓' + (email ? ` (${email})` : '');
-    }).join(' · ');
+    document.querySelectorAll('[data-provider-connection]').forEach(row => {
+        const provider = row.dataset.providerConnection;
+        row.hidden = !providers[provider];
+        row.querySelector('[data-linked-email]').textContent = account.providerEmails?.[provider] || 'Connected account';
+    });
     document.querySelectorAll('[data-unlink-provider]').forEach(button => { button.hidden = !providers[button.dataset.unlinkProvider]; });
     const notice = document.getElementById('password-setup-notice');
     if (notice) notice.hidden = !account.needsPassword;
     document.querySelectorAll('#portal-preview [data-oauth]').forEach(button => {
         const linked = Boolean(providers[button.dataset.oauth]);
+        button.hidden = linked;
         button.dataset.connected = String(linked);
         button.disabled = linked || button.dataset.providerAvailable !== 'true';
         const providerName = button.dataset.oauth === 'google' ? 'Google' : 'GitHub';
         const icon = document.createElement('i');
         icon.className = linked ? 'fa-solid fa-check' : `fa-brands fa-${button.dataset.oauth}`;
         icon.setAttribute('aria-hidden', 'true');
-        button.replaceChildren(icon, document.createTextNode(` ${linked ? providerName + ' connected' : 'Continue with ' + providerName}`));
+        button.replaceChildren(icon, document.createTextNode(` Connect ${providerName}`));
         button.title = linked ? `${providerName} is connected to your account` : '';
     });
     if (portalPreview) portalPreview.hidden = false;
@@ -530,6 +592,7 @@ function showPortalPreview() {
     const backupTools = document.getElementById('backup-tools');
     if (backupTools) backupTools.hidden = !isOwnerAccount(account);
     renderNewsletterPreference();
+    renderPortalRevisions();
     const adminPanel = document.getElementById('admin-panel');
     if (adminPanel) adminPanel.hidden = !isAdminAccount(account);
     renderAdminProjects();
@@ -883,6 +946,8 @@ const requestAccountCopy = document.getElementById('request-account-copy');
 const requestAccountLink = requestAccountIsland?.querySelector('a');
 const estimateSubmit = estimateForm?.querySelector('button[type="submit"]');
 const contactAuthPrompt = document.getElementById('contact-auth-prompt');
+const revisionContactMode = Boolean(estimateForm) && new URLSearchParams(window.location.search).get('revision') === 'use';
+const revisionRequestNote = document.getElementById('revision-request-note');
 
 function updateRequestAccount() {
     if (!estimateForm) return;
@@ -891,7 +956,11 @@ function updateRequestAccount() {
     if (contactAuthPrompt) contactAuthPrompt.hidden = signedIn;
     if (!requestAccountCopy) return;
     if (!signedIn) {
-        requestAccountCopy.textContent = 'An account is optional. Send your brief first.';
+        requestAccountCopy.textContent = revisionContactMode ? 'Sign in to your portal to use a revision.' : 'An account is optional. Send your brief first.';
+        if (revisionContactMode) {
+            if (estimateSubmit) estimateSubmit.disabled = true;
+            if (revisionRequestNote) revisionRequestNote.textContent = 'Sign in through your portal, then choose Use next to your revision balance.';
+        }
         return;
     }
 
@@ -903,9 +972,31 @@ function updateRequestAccount() {
     if (requestAccountLink) requestAccountLink.hidden = true;
     const emailField = document.getElementById('customer-email');
     if (emailField && !emailField.value) emailField.value = account.email || '';
+    if (revisionContactMode) {
+        const fillField = (id, value) => { const field = document.getElementById(id); if (field && !field.value) field.value = value || ''; };
+        fillField('customer-name', name);
+        fillField('customer-business', account.business || 'Website revision');
+        fillField('customer-phone', account.phone);
+        document.getElementById('customer-name').readOnly = true;
+        document.getElementById('customer-email').readOnly = true;
+        const balance = Number(account.revisions || 0);
+        if (estimateSubmit) estimateSubmit.disabled = balance < 1;
+        if (revisionRequestNote) revisionRequestNote.textContent = balance > 0
+            ? `${balance} revision${balance === 1 ? '' : 's'} available. Sending this request uses one revision.`
+            : 'You have no revisions available. Add revision support from the Services page to request another round.';
+    }
 }
 
 if (estimateForm) {
+    if (revisionContactMode) {
+        estimateForm.elements.namedItem('request_kind').value = 'revision';
+        estimateForm.elements.namedItem('revision_request_id').value = crypto.randomUUID();
+        estimateForm.elements.namedItem('details').value = 'I would like to use one revision round for my website.\n\nRequested changes:\n';
+        document.querySelector('[data-contact-title]').textContent = 'Use a revision';
+        document.querySelector('[data-contact-description]').textContent = 'Your account details are filled in. Add the changes you want, then send your revision request.';
+        if (revisionRequestNote) revisionRequestNote.hidden = false;
+        if (estimateSubmit) estimateSubmit.textContent = 'Send revision request';
+    }
     const service = new URLSearchParams(window.location.search).get('service');
     const serviceCopy = {
         'one-revision': 'I would like to add one revision round to my project.',
@@ -917,6 +1008,7 @@ if (estimateForm) {
     estimateForm.addEventListener('submit', async event => {
         event.preventDefault();
         if (estimateSubmit?.disabled) return;
+        if (revisionContactMode && (!getAccount() || Number(getAccount().revisions || 0) < 1)) { updateRequestAccount(); return; }
         if (estimateSubmit) {
             estimateSubmit.disabled = true;
             estimateSubmit.setAttribute('aria-busy', 'true');
@@ -932,6 +1024,11 @@ if (estimateForm) {
             });
             const result = await response.json();
             if (!response.ok || result.success === false) throw new Error(result.error || result.message || 'Unable to send request.');
+            if (revisionContactMode && currentSession) {
+                currentSession.revisions = result.revisions;
+                renderPortalRevisions();
+                if (revisionRequestNote) revisionRequestNote.textContent = `One revision used. ${result.revisions} remaining.`;
+            }
             if (estimateSubmit) {
                 estimateSubmit.removeAttribute('aria-busy');
                 estimateSubmit.classList.add('is-sent');
@@ -945,7 +1042,7 @@ if (estimateForm) {
             if (estimateSubmit) {
                 estimateSubmit.disabled = false;
                 estimateSubmit.removeAttribute('aria-busy');
-                estimateSubmit.textContent = 'Send request';
+                estimateSubmit.textContent = revisionContactMode ? 'Send revision request' : 'Send request';
             }
             if (estimateStatus) estimateStatus.textContent = error.message || 'Unable to send request. Please try again.';
         }
@@ -1473,6 +1570,7 @@ const accountManagementSearch = document.getElementById('account-management-sear
 const accountManagementEmpty = document.getElementById('account-management-empty');
 const accountManagementStatus = document.getElementById('account-management-status');
 let accountManagementCache = [];
+const revisionUpdatesPending = new Set();
 
 function renderAccountManagement() {
     if (!accountManagementList) return;
@@ -1484,30 +1582,94 @@ function renderAccountManagement() {
     }
 
     const accounts = accountManagementCache.filter(account => `${account.name} ${account.email}`.toLowerCase().includes(query));
+    const openAccounts = new Set([...accountManagementList.querySelectorAll('details[open]')].map(item => item.dataset.managedAccount));
     accountManagementList.replaceChildren();
+    const dateLabel = value => value && Number.isFinite(Date.parse(value)) ? new Date(value).toLocaleString() : 'Not recorded';
     accounts.forEach(account => {
-        const item = document.createElement('div');
-        item.className = 'admin-list-item';
+        const item = document.createElement('details');
+        item.className = 'account-details';
+        item.dataset.managedAccount = account.accountId;
+        item.open = openAccounts.has(account.accountId);
+        const summary = document.createElement('summary');
         const identity = document.createElement('div');
         identity.className = 'admin-list-identity';
         const name = document.createElement('strong');
         name.textContent = account.name || 'Account';
         const badge = document.createElement('span');
         badge.className = 'admin-role';
-        badge.textContent = account.verifiedAt ? 'Verified' : 'Pending';
+        badge.textContent = account.role === 'owner' ? 'Owner' : account.role === 'admin' ? 'Administrator' : account.verifiedAt ? 'Verified' : 'Pending';
         const email = document.createElement('span');
+        email.className = 'account-summary-email';
         email.textContent = account.email || 'Email unavailable';
+        const chevron = document.createElement('i');
+        chevron.className = 'fa-solid fa-chevron-down';
+        chevron.setAttribute('aria-hidden', 'true');
         identity.append(name, badge);
-        item.append(identity, email);
-        const deleteButton = document.createElement('button');
-        deleteButton.className = 'admin-delete';
-        deleteButton.type = 'button';
-        deleteButton.dataset.accountId = account.accountId;
-        deleteButton.textContent = 'Delete';
-        item.append(deleteButton);
+        summary.append(identity, email, chevron);
+        const content = document.createElement('div');
+        content.className = 'account-details-content';
+        const stats = document.createElement('div');
+        stats.className = 'account-metrics';
+        for (const [label, count] of [['Websites finished', account.completedWebsites], ['Active websites', account.activeWebsites], ['Revision requests', account.revisionRequests]]) {
+            const stat = document.createElement('div');
+            const value = document.createElement('strong');
+            const title = document.createElement('span');
+            value.textContent = String(count || 0);
+            title.textContent = label;
+            stat.append(value, title);
+            stats.append(stat);
+        }
+        const revisions = document.createElement('div');
+        revisions.className = 'account-revision-controls';
+        const revisionText = document.createElement('span');
+        revisionText.dataset.accountRevisionBalance = account.accountId;
+        revisionText.textContent = `Revisions available: ${account.revisions || 0}`;
+        const controls = document.createElement('div');
+        controls.className = 'revision-actions';
+        for (const delta of [-1, 1]) {
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.className = 'revision-adjust';
+            button.dataset.revisionAccountId = account.accountId;
+            button.dataset.revisionDelta = String(delta);
+            button.setAttribute('aria-label', `${delta > 0 ? 'Add' : 'Subtract'} one revision for ${account.name}`);
+            button.textContent = delta > 0 ? '+' : '−';
+            button.disabled = revisionUpdatesPending.has(account.accountId) || (delta < 0 && !account.revisions);
+            controls.append(button);
+        }
+        revisions.append(revisionText, controls);
+        const revisionStatus = document.createElement('p');
+        revisionStatus.className = 'portal-status';
+        revisionStatus.dataset.accountRevisionStatus = account.accountId;
+        revisionStatus.setAttribute('role', 'status');
+        const information = document.createElement('dl');
+        information.className = 'account-information';
+        const linked = ['google', 'github'].filter(key => account.connectedProviders?.[key]).map(key => `${key === 'google' ? 'Google' : 'GitHub'}${account.providerEmails?.[key] ? ` (${account.providerEmails[key]})` : ''}`).join(' · ');
+        for (const [label, value] of [
+            ['Joined', dateLabel(account.createdAt)], ['Email verified', account.verifiedAt ? dateLabel(account.verifiedAt) : 'Not verified'],
+            ['Last sign-in', dateLabel(account.lastSignedInAt)], ['Newsletter', account.newsletterOptIn ? 'Subscribed' : 'Not subscribed'],
+            ['Connected accounts', linked || 'None'], ['Portal password', account.hasPassword ? 'Set' : 'Not set'],
+            ['Business', account.business || 'Not provided'], ['Phone', account.phone || 'Not provided'],
+            ['Portfolio websites', String(account.portfolioWebsites || 0)], ['Account ID', account.accountId]
+        ]) {
+            const term = document.createElement('dt');
+            const description = document.createElement('dd');
+            term.textContent = label;
+            description.textContent = value;
+            information.append(term, description);
+        }
+        content.append(stats, revisions, revisionStatus, information);
+        if (isOwnerAccount(getAccount()) && account.role !== 'owner') {
+            const deleteButton = document.createElement('button');
+            deleteButton.className = 'admin-delete account-delete';
+            deleteButton.type = 'button';
+            deleteButton.dataset.accountId = account.accountId;
+            deleteButton.textContent = 'Delete account';
+            content.append(deleteButton);
+        }
+        item.append(summary, content);
         accountManagementList.append(item);
     });
-
     if (accountManagementEmpty) {
         accountManagementEmpty.hidden = accounts.length !== 0;
         accountManagementEmpty.textContent = query ? 'No matching accounts found.' : 'No accounts found.';
@@ -1527,6 +1689,39 @@ async function loadAccountManagement() {
 
 if (accountManagementList) {
     accountManagementList.addEventListener('click', async event => {
+        const revisionButton = event.target.closest('[data-revision-account-id]');
+        if (revisionButton && currentAccountIsAdmin()) {
+            event.preventDefault();
+            event.stopPropagation();
+            const id = revisionButton.dataset.revisionAccountId;
+            const delta = Number(revisionButton.dataset.revisionDelta);
+            if (revisionButton.disabled || revisionUpdatesPending.has(id)) return;
+            const row = revisionButton.closest('[data-managed-account]');
+            const status = row.querySelector('[data-account-revision-status]');
+            revisionUpdatesPending.add(id);
+            revisionButton.closest('.revision-actions').querySelectorAll('button').forEach(button => { button.disabled = true; });
+            status.textContent = 'Saving revisions…';
+            try {
+                const result = await apiRequest(`/api/accounts/${encodeURIComponent(id)}/revisions`, { method: 'PATCH', body: JSON.stringify({ delta }) });
+                if (!result.account || !Number.isSafeInteger(result.account.revisions)) throw new Error('The server did not confirm the revision balance. Refresh the page and try again.');
+                accountManagementCache = accountManagementCache.map(account => account.accountId === id ? result.account : account);
+                row.querySelector('[data-account-revision-balance]').textContent = `Revisions available: ${result.account.revisions}`;
+                if (result.account.accountId === getAccount()?.id || normalizeEmail(result.account.email) === normalizeEmail(getAccount()?.email)) {
+                    currentSession.revisions = result.account.revisions;
+                    renderPortalRevisions();
+                }
+                status.textContent = `Saved. ${result.account.revisions} revision${result.account.revisions === 1 ? '' : 's'} available.`;
+            } catch (error) {
+                status.textContent = `Could not save revisions: ${error.message}`;
+            } finally {
+                revisionUpdatesPending.delete(id);
+                const account = accountManagementCache.find(account => account.accountId === id);
+                row.querySelectorAll('[data-revision-account-id]').forEach(button => {
+                    button.disabled = Number(button.dataset.revisionDelta) < 0 && !account?.revisions;
+                });
+            }
+            return;
+        }
         const deleteButton = event.target.closest('[data-account-id]');
         if (!deleteButton || !currentAccountIsAdmin()) return;
         if (!await showSiteDialog({
@@ -1552,6 +1747,7 @@ if (accountManagementList) {
         }
     });
 }
+accountManagementSearch?.addEventListener('input', renderAccountManagement);
 
 const requestList = document.getElementById('request-list');
 const requestSearch = document.getElementById('request-search');
@@ -1600,7 +1796,7 @@ function renderContactRequests() {
         item.className = 'request-item';
         const summary = document.createElement('summary');
         const summaryName = document.createElement('strong');
-        summaryName.textContent = request.name || request.email || 'Unnamed request';
+        summaryName.textContent = `${request.kind === 'revision' ? 'Revision · ' : ''}${request.name || request.email || 'Unnamed request'}`;
         const summaryDate = document.createElement('time');
         summaryDate.dateTime = request.createdAt || '';
         summaryDate.textContent = formatRequestDate(request.createdAt);
@@ -1625,12 +1821,14 @@ function renderContactRequests() {
                 await apiRequest(`/api/contact-requests/${encodeURIComponent(request.id)}`, { method: 'DELETE' });
                 item.remove();
                 await loadContactRequests();
+                await loadAccountManagement();
             } catch (error) { requestEmpty.textContent = error.message; }
         });
         summary.append(summaryName, summaryProgress, summaryDate, deleteButton);
         const details = document.createElement('div');
         details.className = 'request-item-details';
         const fields = [
+            ['Request type', request.kind === 'revision' ? 'Use one revision round' : 'Website project'],
             ['Email', request.email],
             ['Business', request.business],
             ['Phone', request.phone],
@@ -1690,6 +1888,7 @@ function renderContactRequests() {
             try {
                 await apiRequest(`/api/contact-requests/${encodeURIComponent(request.id)}`, { method: 'PATCH', body: JSON.stringify({ status: activeRequestStatus === 'pending' ? 'confirmed' : 'completed' }) });
                 await loadContactRequests();
+                await loadAccountManagement();
             } catch (error) {
                 if (requestEmpty) requestEmpty.textContent = error.message;
             }
@@ -1767,6 +1966,10 @@ async function loadWorkspaceUpdates() {
     if (!workspaceUpdates || !currentSession) return;
     try {
         const result = await apiRequest('/api/my-workspace');
+        if (Number.isSafeInteger(result.revisions)) {
+            currentSession.revisions = result.revisions;
+            renderPortalRevisions();
+        }
         renderWorkspaceUpdates(Array.isArray(result.requests) ? result.requests : []);
     } catch { /* The workspace can still show its signed-in shell if updates are unavailable. */ }
 }

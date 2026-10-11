@@ -45,6 +45,7 @@ function validateBackup(snapshot) {
     const unique = (items, key) => new Set(items.map(item => item[key])).size === items.length;
     if (!unique(data.accounts, 'id') || !unique(data.accounts, 'email') || !unique(data.projects, 'id')) throw new Error('Duplicate records');
     for (const account of data.accounts) {
+        if (account.revisions !== undefined && (!Number.isSafeInteger(account.revisions) || account.revisions < 0 || account.revisions > 10000)) throw new Error('Invalid revision balance');
         if (!['id', 'firstName', 'lastName', 'email'].every(key => typeof account[key] === 'string') ||
             !account.id || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(account.email) || account.email !== account.email.trim().toLowerCase() ||
             !/^[a-f0-9]{128}$/.test(account.passwordHash || account.hash) || !/^[a-f0-9]{32}$/.test(account.passwordSalt || account.salt) ||

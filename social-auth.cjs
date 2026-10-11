@@ -114,7 +114,7 @@ function registerSocialAuth({ api, readData, writeData, currentAccount, createSe
                 if (latest.accounts.some(item => normalizeEmail(item.email) === email)) return res.redirect('/portal?authError=existing');
                 const parts = name.trim().split(/\s+/);
                 account = { id: crypto.randomBytes(12).toString('hex'), email, firstName: parts.shift() || 'Client', lastName: parts.join(' '),
-                    newsletterOptIn: false, passwordSet: false, verifiedAt: new Date().toISOString(), ...hashPassword(crypto.randomBytes(48).toString('hex')) };
+                    createdAt: new Date().toISOString(), revisions: 0, newsletterOptIn: false, passwordSet: false, verifiedAt: new Date().toISOString(), ...hashPassword(crypto.randomBytes(48).toString('hex')) };
                 latest.accounts.push(account);
             }
             if (!account.verifiedAt) throw new Error('Unverified account');
