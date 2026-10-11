@@ -38,3 +38,32 @@ To restore, select a backup, enter its original passphrase and your current acco
 Only an authenticated, password-confirmed owner can use backup endpoints. A backup must contain the matching owner account. If the entire database or owner account is lost, this portal flow cannot run; use a database-level recovery or a trusted server-side import instead. These downloads supplement, rather than replace, the database provider's recovery options.
 
 For this release, deploy `account-tools.cjs` and `portal-tools.js` along with the updated `server.js`, `script.js`, `style.css`, and `portal.html`.
+
+## Guest briefs, pricing, and SEO
+
+The contact page and `/api/contact` accept guest briefs. A hidden text honeypot and a five-request-per-hour IP limit protect email quota. Requests are stored before the Resend owner notification is attempted; an email failure returns an honest saved-request message. The button shows a spinner, then a green checkmark and an optional portal signup prompt. Verified clients can see guest requests submitted with their email after creating an account. The Express proxy setting assumes one trusted reverse proxy, matching the Render deployment; adjust it if you change the hosting topology.
+
+Existing website rates remain $800 / $1,100 / $1,600. The estimator uses page count: 1–3 pages start at $800, 4–6 at $1,100, and 7 at $1,600; each additional page adds an indicative $150. Plain-language feature toggles add estimated costs, and page count/features carry into the contact brief. An optional description carries into project details through temporary browser session storage, without placing the description in the URL.
+
+The homepage stack cards have section/card spacing. The availability link and performance-report card were removed. Scroll reveals replay when elements re-enter from either direction and respect reduced-motion preferences.
+
+The homepage ProfessionalService JSON-LD includes the real logo asset, development expertise, and service types. Unverified example GitHub/X profiles are not included. The root `sitemap.xml` contains public pages with their update date, change frequency, and priority. The server serves it at `/sitemap.xml`, substitutes `CRIMSON_PUBLIC_URL` for the hostname, and appends published project URLs. Update `lastmod` only when a page actually changes. The canonical/schema URLs use `https://www.crimsoncreations.dev`; keep these and your production public URL consistent. The sitemap helps discovery and schema describes the studio; neither guarantees indexing, business registration, or Knowledge Graph inclusion.
+
+Project editing now includes Problem, Solution, Measured impact, and Tools used. Add actual results and measurement periods in the owner portal. Empty impact fields explicitly state that results have not been published. Project detail pages offer desktop (1280px), tablet (768px), and mobile (390px) live iframe previews. Some sites prevent embedding; the direct site link stays available. The preview is sandboxed, and HTTPS pages do not embed HTTP projects.
+
+## Enable Google and GitHub sign-in
+
+Deploy `social-auth.cjs` and `enhancements.js`, plus the updated HTML, `server.js`, `script.js`, `style.css`, and `account-tools.cjs`. Keep the existing database and Resend settings. Social provider secrets belong in Render's environment, never browser files or GitHub.
+
+1. In [Google Cloud's OAuth setup](https://developers.google.com/identity/protocols/oauth2/web-server), configure the consent screen and create an OAuth client of type **Web application**. Add the authorized redirect URI `https://www.crimsoncreations.dev/api/auth/oauth/google/callback`. Set `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` in Render. Add test users while the consent screen is in testing, or complete Google's publishing requirements for public access.
+2. Register a [GitHub OAuth app](https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/creating-an-oauth-app) with homepage `https://www.crimsoncreations.dev` and callback `https://www.crimsoncreations.dev/api/auth/oauth/github/callback`. Set `GITHUB_CLIENT_ID` and `GITHUB_CLIENT_SECRET` in Render.
+3. Use the exact origin in `CRIMSON_PUBLIC_URL`; callbacks must match it, including `www`. For local Google testing, register `http://localhost:3000/api/auth/oauth/google/callback` too. GitHub generally needs a separate development OAuth app for its local callback.
+4. Redeploy and try both providers with your own accounts. Buttons are disabled with a setup message when credentials are absent. The automated tests mock providers; a real callback test requires your registered apps.
+
+Google and GitHub can create new verified client accounts or sign into accounts already connected to them. An existing email account must first sign in with its password or magic link, then use **Connect Google or GitHub** in the dashboard with the same verified email. Provider IDs are stored as the identity; accounts are not silently merged by email. Authorization uses short-lived, browser-bound, single-use state and PKCE. Provider access tokens are used to read the verified identity and are not stored.
+
+The sign-in screen now uses Google, GitHub, or password fields. The email magic-link request UI was removed; the backend still accepts previously issued magic links. Existing verified accounts can request Resend magic links through the existing API. Links expire after 15 minutes, are stored only as hashes, and are consumed once with a dashboard confirmation button. There is a one-minute email cooldown and an IP attempt limit. Active magic links and OAuth flows are excluded from encrypted backups; password resets invalidate outstanding magic links. Social accounts can set a password through the existing password recovery flow if desired.
+
+Validation: `npm test` includes database persistence, guest/honeypot contact behavior, account recovery, backup/restore, OAuth state/PKCE/account linking, magic-link expiry/replay, and local asset/route checks. Real OAuth callbacks, production email delivery, and actual Lighthouse metrics require a deployed test.
+
+See [SETUP.md](SETUP.md) for the exact OAuth, free spam protection, sitemap deployment, and Search Console steps.

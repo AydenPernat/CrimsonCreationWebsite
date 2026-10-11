@@ -19,7 +19,7 @@ const data = {
     sessions: [{ accountId: 'subscriber', tokenHash: crypto.createHash('sha256').update('subscriber-session').digest('hex'), expiresAt: Date.now() + 60000 }, { accountId: 'owner', tokenHash: crypto.createHash('sha256').update(sessionToken).digest('hex'), expiresAt: Date.now() + 60000 }]
 };
 for (const file of fs.readdirSync(__dirname)) {
-    if (['server.js', 'data-store.cjs', 'account-tools.cjs'].includes(file) || file.endsWith('.html') || ['style.css', 'script.js', 'success.js', 'portal-tools.js'].includes(file)) {
+    if (['server.js', 'data-store.cjs', 'account-tools.cjs', 'social-auth.cjs', 'sitemap.xml'].includes(file) || file.endsWith('.html') || ['style.css', 'script.js', 'success.js', 'portal-tools.js', 'enhancements.js'].includes(file)) {
         fs.copyFileSync(path.join(__dirname, file), path.join(testDir, file));
     }
 }
@@ -31,6 +31,7 @@ const fs = require('fs');
 global.fetch = async (_url, options) => {
     fs.appendFileSync(__dirname + '/emails.jsonl', options.body + '\\n');
     await new Promise(resolve => setTimeout(resolve, 250));
+    if (JSON.parse(options.body).subject === 'New website request from Delivery failure') return { ok: false, status: 503, json: async () => ({ message: 'Test email failure' }) };
     return { ok: true, status: 200, json: async () => ({}) };
 };
 `);
@@ -58,7 +59,12 @@ const post = (route, body, cookie) => fetch(base + route, {
     const signup = email => post('/api/auth/signup', { firstName: 'New', lastName: 'User', email, password: 'test-password' });
     const anonymousContact = await fetch(base + '/api/contact', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body: new URLSearchParams({ name: 'Test', business: 'Test', email: 'contact@test.invalid', details: 'Test request' }) });
-    assert.equal(anonymousContact.status, 401);
+    assert.equal(anonymousContact.status, 200);
+    assert.equal((await anonymousContact.json()).success, true);
+    const beforeBot = JSON.parse(fs.readFileSync(path.join(testDir, 'data.json'))).contactRequests.length;
+    const bot = await post('/api/contact', { website: 'spam.test', name: 'Bot', business: 'Bot', email: 'bot@test.invalid', details: 'Spam' });
+    assert.equal(bot.status, 200);
+    assert.equal(JSON.parse(fs.readFileSync(path.join(testDir, 'data.json'))).contactRequests.length, beforeBot);
     const invalidContact = await fetch(base + '/api/contact', { method: 'POST', headers: { Cookie: `crimson_session=${sessionToken}`, 'Content-Type': 'application/json' }, body: '{}' });
     assert.equal(invalidContact.status, 400);
     const [first, second, contact] = await Promise.all([
@@ -71,7 +77,15 @@ const post = (route, body, cookie) => fetch(base + route, {
     assert.equal(contact.status, 200);
     let stored = JSON.parse(fs.readFileSync(path.join(testDir, 'data.json')));
     assert.equal(stored.accounts.length, 4);
-    assert.equal(stored.contactRequests.length, 1);
+    assert.equal(stored.contactRequests.length, 2);
+    assert.equal(stored.contactRequests[0].accountEmail, '');
+    const contactBody = { name: 'Delivery failure', business: 'Test', email: 'failure@test.invalid', details: 'Saved even if email fails' };
+    const failedDelivery = await post('/api/contact', contactBody);
+    assert.equal(failedDelivery.status, 202);
+    assert.match((await failedDelivery.json()).message, /saved.*could not be delivered/);
+    assert.equal(JSON.parse(fs.readFileSync(path.join(testDir, 'data.json'))).contactRequests.length, 3);
+    for (let index = 0; index < 2; index++) assert.equal((await post('/api/contact', { ...contactBody, name: 'Valid request' })).status, 200);
+    assert.equal((await post('/api/contact', { ...contactBody, name: 'Over quota' })).status, 429);
 
     const missingRequest = await post('/api/newsletter/unsubscribe-request', { email: 'missing@test.invalid' });
     assert.equal(missingRequest.status, 200);
@@ -107,9 +121,16 @@ const post = (route, body, cookie) => fetch(base + route, {
     for (const privatePath of ['/data.json', '/DATA.JSON', '/server.js', '/smoke-test.cjs', '/admins.html', '/admin.js']) {
         assert.equal((await fetch(base + privatePath)).status, 404, privatePath);
     }
-    for (const publicPath of ['/services', '/style.css', '/script.js', '/img/crimson-logo.jpg']) {
+    for (const publicPath of ['/services', '/style.css', '/script.js', '/enhancements.js', '/sitemap.xml', '/robots.txt', '/api/auth/providers', '/img/crimson-logo.jpg']) {
         assert.equal((await fetch(base + publicPath)).status, 200, publicPath);
     }
+    const sitemap = await (await fetch(base + '/sitemap.xml')).text();
+    for (const route of ['/', '/services', '/projects', '/about', '/contact']) assert.ok(sitemap.includes(`<loc>${base}${route}</loc>`));
+    assert.ok(!sitemap.includes('/portal'));
+    const homepage = await (await fetch(base + '/')).text();
+    const schema = JSON.parse(homepage.match(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/)[1]);
+    assert.equal(schema['@type'], 'ProfessionalService');
+    assert.equal((await fetch(base + new URL(schema.logo).pathname)).status, 200);
     const legacyPage = await fetch(base + '/services.html?service=test', { redirect: 'manual' });
     assert.equal(legacyPage.status, 301);
     assert.equal(legacyPage.headers.get('location'), '/services?service=test');

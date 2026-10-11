@@ -26,12 +26,13 @@ const unsubscribeAttempts = new Map();
 
 app.use('/api/backups', express.json({ limit: '13mb' }));
 app.use(express.json({ limit: '100kb' }));
+app.set('trust proxy', 1);
 app.use((_request, response, next) => {
     response.setHeader('X-Content-Type-Options', 'nosniff');
     response.setHeader('X-Frame-Options', 'DENY');
     response.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
     response.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
-    response.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://fonts.googleapis.com; font-src 'self' https://cdnjs.cloudflare.com https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self'; form-action 'self'");
+    response.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://fonts.googleapis.com; font-src 'self' https://cdnjs.cloudflare.com https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self'; frame-src https: http:; form-action 'self'");
     if (process.env.NODE_ENV === 'production') response.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
     next();
 });
@@ -60,13 +61,25 @@ Object.entries(cleanPageRoutes).forEach(([cleanPath, fileName]) => {
     if (cleanPath === '/') return;
     app.get(`/${fileName}`, (request, response) => response.redirect(301, `${cleanPath}${request.url.slice(fileName.length + 1)}`));
 });
-['style.css', 'script.js', 'success.js', 'portal-tools.js'].forEach(fileName => {
+['style.css', 'script.js', 'success.js', 'portal-tools.js', 'enhancements.js'].forEach(fileName => {
     app.get(`/${fileName}`, (_request, response) => response.sendFile(path.join(__dirname, fileName)));
 });
 app.use('/img', express.static(path.join(__dirname, 'img')));
 
 const readData = () => store.read();
 const writeData = data => store.write(data);
+
+app.get('/robots.txt', (_request, response) => {
+    const origin = new URL(process.env.CRIMSON_PUBLIC_URL || 'https://www.crimsoncreations.dev').origin;
+    response.type('text/plain').send(`User-agent: *\nAllow: /\nDisallow: /api/\nDisallow: /portal\nDisallow: /success\nDisallow: /unsubscribe\nSitemap: ${origin}/sitemap.xml\n`);
+});
+api('get', '/sitemap.xml', (_request, response) => {
+    const origin = new URL(process.env.CRIMSON_PUBLIC_URL || 'https://www.crimsoncreations.dev').origin;
+    const template = fs.readFileSync(path.join(__dirname, 'sitemap.xml'), 'utf8').replaceAll('https://www.crimsoncreations.dev', escapeHtml(origin));
+    const projects = readData().projects.map(project => `<url><loc>${escapeHtml(`${origin}/project?projectId=${encodeURIComponent(project.id)}`)}</loc></url>`).join('\n');
+    response.setHeader('Content-Type', 'application/xml; charset=utf-8');
+    response.send(template.replace('</urlset>', `${projects}\n</urlset>`));
+});
 
 function normalizeEmail(email) { return String(email || '').trim().toLowerCase(); }
 
@@ -211,12 +224,14 @@ function requireAccount(request, response, adminOnly = false) {
 function allowAuthAttempt(request, response) {
     const key = request.ip || 'unknown';
     const now = Date.now();
+    for (const [ip, times] of authAttempts) if (times.every(time => now - time >= 15 * 60 * 1000)) authAttempts.delete(ip);
     const attempts = (authAttempts.get(key) || []).filter(timestamp => now - timestamp < 15 * 60 * 1000);
     if (attempts.length >= 10) { response.status(429).json({ error: 'Too many attempts. Please try again later.' }); return false; }
     attempts.push(now); authAttempts.set(key, attempts); return true;
 }
 
 require('./account-tools.cjs').registerAccountTools({ api, readData, writeData, requireAccount, normalizeEmail, hashToken, hashPassword, passwordMatches, configuredAdminEmails, sendVerificationEmail, secureCookie, port });
+require('./social-auth.cjs').registerSocialAuth({ api, readData, writeData, currentAccount, createSession, normalizeEmail, hashToken, hashPassword, allowAuthAttempt, secureCookie, port });
 
 api('get', '/api/auth/me', (request, response) => response.json({ account: publicAccount(currentAccount(request)) }));
 
@@ -363,6 +378,10 @@ function normalizeProjectPayload(input = {}) {
         focus: String(input.focus || '').trim().slice(0, 1000),
         buildTitle: String(input.buildTitle || '').trim().slice(0, 240),
         buildDescription: String(input.buildDescription || '').trim().slice(0, 2000),
+        problem: String(input.problem || '').trim().slice(0, 2000),
+        solution: String(input.solution || '').trim().slice(0, 2000),
+        impact: String(input.impact || '').trim().slice(0, 2000),
+        tools: String(input.tools || '').trim().slice(0, 500),
         projectType
     };
     if (!project.name || !project.description || !project.ownerEmail || !projectType) return { error: 'Name, description, owner email, and project type are required.' };
@@ -581,9 +600,9 @@ api('delete', '/api/admins/:accountId', (request, response) => {
 
 app.use(express.urlencoded({ extended: false }));
 api('post', '/api/contact', async (request, response) => {
-    const signedInAccount = requireAccount(request, response);
-    if (!signedInAccount) return;
+    const signedInAccount = currentAccount(request);
     const body = request.body || {};
+    if (body.botcheck || body.website) return response.json({ success: true, message: 'Request received.' });
     const name = String(body.name || '').trim();
     const business = String(body.business || '').trim();
     const email = normalizeEmail(body.email);
@@ -593,6 +612,7 @@ api('post', '/api/contact', async (request, response) => {
     }
     const key = request.ip || 'unknown';
     const now = Date.now();
+    for (const [ip, times] of contactAttempts) if (times.every(time => now - time >= 60 * 60 * 1000)) contactAttempts.delete(ip);
     const attempts = (contactAttempts.get(key) || []).filter(timestamp => now - timestamp < 60 * 60 * 1000);
     if (attempts.length >= 5) return response.status(429).json({ message: 'Too many requests. Please try again later.' });
     attempts.push(now); contactAttempts.set(key, attempts);
@@ -641,6 +661,7 @@ api('post', '/api/contact', async (request, response) => {
     try {
         const result = await fetch('https://api.resend.com/emails', {
             method: 'POST',
+            signal: AbortSignal.timeout(15000),
             headers: { Authorization: `Bearer ${process.env.RESEND_API_KEY}`, 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 from: process.env.RESEND_FROM_EMAIL,

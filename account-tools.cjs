@@ -3,8 +3,9 @@ const crypto = require('node:crypto');
 function backupData(data) {
     const copy = structuredClone(data);
     copy.sessions = [];
+    delete copy.oauthFlows;
     for (const account of copy.accounts) {
-        for (const key of ['verificationTokenHash', 'verificationExpiresAt', 'resetTokenHash', 'resetExpiresAt']) delete account[key];
+        for (const key of ['verificationTokenHash', 'verificationExpiresAt', 'resetTokenHash', 'resetExpiresAt', 'magicTokenHash', 'magicExpiresAt', 'magicSentAt']) delete account[key];
     }
     return copy;
 }
@@ -133,6 +134,8 @@ function registerAccountTools({ api, readData, writeData, requireAccount, normal
         delete account.salt;
         delete account.resetTokenHash;
         delete account.resetExpiresAt;
+        delete account.magicTokenHash;
+        delete account.magicExpiresAt;
         data.sessions = (data.sessions || []).filter(session => session.accountId !== account.id);
         writeData(data);
         response.setHeader('Set-Cookie', `crimson_session=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0${secureCookie}`);

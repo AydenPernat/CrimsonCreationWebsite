@@ -7,7 +7,8 @@
     <title>Crimson Creations</title>
     <meta name="description" content="The Crimson Creations client portal for checking website project progress.">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-    <link rel="stylesheet" href="style.css?v=17">
+    <link rel="stylesheet" href="style.css?v=20">
+    <meta name="robots" content="noindex, nofollow">
 </head>
 
 <body>
@@ -40,8 +41,8 @@
                 <div class="portal-card reveal-on-scroll">
                     <p class="eyebrow">Client sign in</p>
                     <h2 class="section-title" style="font-size: 2rem;">Welcome back.</h2>
-                    <p>Use the email and password connected to your project to open your workspace.</p>
-                    <form class="portal-form" id="portal-form">
+                    <p>Open your workspace with Google, GitHub, or your password.</p>
+                    <div class="social-signin" data-social-signin><button class="btn btn-secondary" type="button" data-oauth="google" disabled><i class="fa-brands fa-google" aria-hidden="true"></i> Continue with Google</button><button class="btn btn-secondary" type="button" data-oauth="github" disabled><i class="fa-brands fa-github" aria-hidden="true"></i> Continue with GitHub</button><p class="portal-status" data-provider-status role="status"></p></div><form class="portal-form" id="portal-form">
                         <div class="field">
                             <label for="portal-email">Email</label>
                             <input id="portal-email" type="email" placeholder="you@example.com" required>
@@ -70,7 +71,7 @@
                     </details>
                 </div>
 
-                <div class="portal-card" id="reset-panel" hidden>
+                <div class="portal-card" id="magic-consume-panel" hidden><h2>Sign in with your email link</h2><p>Continue to open your client dashboard.</p><button id="magic-consume" class="btn btn-primary" type="button">Continue to dashboard</button><p id="magic-consume-status" class="portal-status" role="status"></p></div><div class="portal-card" id="reset-panel" hidden>
                     <p class="eyebrow">Account recovery</p>
                     <h2>Choose a new password</h2>
                     <p>Reset links expire after 30 minutes and can only be used once.</p>
@@ -87,7 +88,7 @@
                     <p class="eyebrow">New client account</p>
                     <h2 class="section-title" style="font-size: 2rem;">Create your portal.</h2>
                     <p>Use your name, email, and a password so your project updates can be connected to you.</p>
-                    <form class="portal-form" id="portal-signup-form">
+                    <div class="social-signin" data-social-signin><button class="btn btn-secondary" type="button" data-oauth="google" disabled><i class="fa-brands fa-google" aria-hidden="true"></i> Continue with Google</button><button class="btn btn-secondary" type="button" data-oauth="github" disabled><i class="fa-brands fa-github" aria-hidden="true"></i> Continue with GitHub</button><p class="portal-status" data-provider-status role="status"></p></div><p>Google and GitHub can create your account without a separate password.</p><form class="portal-form" id="portal-signup-form">
                         <div class="form-grid">
                             <div class="field">
                                 <label for="portal-first-name">First name</label>
@@ -134,7 +135,7 @@
                             <button class="btn btn-secondary portal-signout" id="portal-signout" type="button">Sign out</button>
                         </div>
                     </div>
-                        <div class="portal-profile">
+                        <details class="account-recovery"><summary>Connect Google or GitHub</summary><p>Use a provider account with the same verified email as this portal account.</p><div class="social-signin" data-social-signin><button class="btn btn-secondary" type="button" data-oauth="google" disabled><i class="fa-brands fa-google" aria-hidden="true"></i> Continue with Google</button><button class="btn btn-secondary" type="button" data-oauth="github" disabled><i class="fa-brands fa-github" aria-hidden="true"></i> Continue with GitHub</button><p class="portal-status" data-provider-status role="status"></p></div></details><div class="portal-profile">
                         <div class="profile-avatar" data-client-initials>CC</div>
                         <div>
                             <strong data-client-name>Client</strong>
@@ -289,6 +290,11 @@
                                 <input id="admin-project-tags" name="what_built_tags" type="text" autocomplete="off" placeholder="restaurant, branding, contact form" required>
                                 </div>
                             </div>
+                            
+                            <div class="field full"><label for="admin-project-problem">Client problem</label><textarea id="admin-project-problem" rows="3" maxlength="2000" placeholder="What challenge did the client face?"></textarea></div>
+                            <div class="field full"><label for="admin-project-solution">Solution</label><textarea id="admin-project-solution" rows="3" maxlength="2000" placeholder="How did you solve it?"></textarea></div>
+                            <div class="field full"><label for="admin-project-impact">Measured impact</label><textarea id="admin-project-impact" rows="3" maxlength="2000" placeholder="Add verified results and measurement period; leave blank if not measured."></textarea></div>
+                            <div class="field full"><label for="admin-project-tools">Tools used</label><textarea id="admin-project-tools" rows="3" maxlength="500" placeholder="Languages, frameworks, and integrations"></textarea></div>
                             <button class="btn btn-primary" id="admin-project-submit" type="submit">Add project</button>
                                     <p class="portal-status" id="admin-project-status" aria-live="polite"></p>
                                 </form>
@@ -438,11 +444,13 @@
                 </div>
             </div>
         </div>
+        <p class="footer-disclaimer">Crimson Creations (.dev) is an independent web design &amp; software engineering studio. Not affiliated with any gaming or content creation teams.</p>
         <div class="footer-bottom">
             <span>(c) 2026 Crimson Creations. All rights reserved.</span>
         </div>
     </footer>
-<script src="script.js?v=41"></script>
+<script src="script.js?v=43"></script>
+<script src="enhancements.js?v=3" defer></script>
     <script src="portal-tools.js?v=1"></script>
 </body>
 

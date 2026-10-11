@@ -8,7 +8,8 @@
     <title>Crimson Creations</title>
     <meta name="description" content="Request a custom website from Crimson Creations. Share your goals, style, and timeline in a simple form.">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-    <link rel="stylesheet" href="style.css?v=17">
+    <link rel="stylesheet" href="style.css?v=20">
+    <link rel="canonical" href="https://www.crimsoncreations.dev/contact">
 </head>
 
 <body class="contact-page">
@@ -81,33 +82,28 @@
                 <div class="form-card reveal-on-scroll">
                     <p class="eyebrow">Request form</p>
                     <h2 class="section-title" style="font-size: 2rem;">Send your project details</h2>
-                    <p>Sign in to send your project details and keep the request connected to your account.</p>
+                    <p>Send your brief now — no account needed. You can create a client portal account afterward to follow your project.</p>
 
-                    <div class="request-account-island" id="contact-auth-prompt">
-                        <i class="fa-solid fa-lock" aria-hidden="true"></i>
-                        <span><strong>Sign-in required.</strong> Sign in or create an account before sending a request.</span>
-                        <a href="/portal?next=contact">Sign in</a>
-                    </div>
-                    <form id="estimate-form" action="/api/contact" method="POST" autocomplete="off" hidden>
+<form id="estimate-form" action="/api/contact" method="POST" autocomplete="on">
                         <input type="hidden" name="subject" value="New Crimson Creations project request">
                         <input type="hidden" name="from_name" value="Crimson Creations website">
-                        <input type="checkbox" name="botcheck" style="display: none;">
+                        <div class="form-honeypot" aria-hidden="true"><label for="contact-website">Leave this field empty</label><input id="contact-website" name="website" type="text" tabindex="-1" autocomplete="off"></div>
                         <div class="form-grid">
                             <div class="field">
                                 <label for="customer-name">Name</label>
-                                <input id="customer-name" name="name" type="text" autocomplete="off" placeholder="Name" required>
+                                <input id="customer-name" name="name" type="text" autocomplete="name" placeholder="Name" required>
                             </div>
                             <div class="field">
                                 <label for="customer-business">Business name</label>
-                                <input id="customer-business" name="business" type="text" autocomplete="off" placeholder="Business name" required>
+                                <input id="customer-business" name="business" type="text" autocomplete="organization" placeholder="Business name" required>
                             </div>
                             <div class="field">
                                 <label for="customer-email">Email</label>
-                                <input id="customer-email" name="email" type="email" autocomplete="off" placeholder="Email" required>
+                                <input id="customer-email" name="email" type="email" autocomplete="email" placeholder="Email" required>
                             </div>
                             <div class="field">
                                 <label for="customer-phone">Phone</label>
-                                <input id="customer-phone" name="phone" type="tel" autocomplete="off" placeholder="Phone">
+                                <input id="customer-phone" name="phone" type="tel" autocomplete="tel" placeholder="Phone">
                             </div>
                             <div class="field">
                                 <label for="customer-budget">Budget range</label>
@@ -123,11 +119,12 @@
                             </div>
                         </div>
                         <div class="request-account-island" id="request-account-island">
-                            <i class="fa-solid fa-lock" aria-hidden="true"></i>
-                            <span id="request-account-copy"><strong>Client account</strong> Your request stays connected to your account.</span>
+                            <i class="fa-solid fa-user" aria-hidden="true"></i>
+                            <span id="request-account-copy"><strong>Client account</strong> An account is optional. Send your brief first.</span>
                         </div>
                         <button type="submit" class="btn btn-primary form-submit-button">Send request</button>
                         <p id="estimate-status" class="estimate-status" aria-live="polite"></p>
+                        <div id="optional-onboarding" hidden><h3>Keep track in your client portal</h3><p>Create an account with the same email you used for this brief, or sign in to see your updates.</p><a class="btn btn-secondary" href="/portal">Create an account or sign in</a></div>
                     </form>
                 </div>
             </div>
@@ -168,11 +165,13 @@
                 </div>
             </div>
         </div>
+        <p class="footer-disclaimer">Crimson Creations (.dev) is an independent web design &amp; software engineering studio. Not affiliated with any gaming or content creation teams.</p>
         <div class="footer-bottom">
             <span>(c) 2026 Crimson Creations. All rights reserved.</span>
         </div>
     </footer>
-<script src="script.js?v=41"></script>
+<script src="script.js?v=43"></script>
+<script src="enhancements.js?v=3" defer></script>
 </body>
 
 </html>

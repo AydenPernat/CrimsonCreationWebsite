@@ -136,13 +136,10 @@ if (header) {
 
 const revealObserver = new IntersectionObserver(entries => {
     entries.forEach(entry => {
-        if (entry.isIntersecting) {
-            entry.target.classList.add('is-visible');
-            revealObserver.unobserve(entry.target);
-        }
+        entry.target.classList.toggle('is-visible', entry.isIntersecting);
     });
 }, {
-    threshold: 0.15,
+    threshold: 0,
     rootMargin: document.body.classList.contains('about-page') ? '0px 0px -12% 0px' : '0px 0px -8% 0px'
 });
 
@@ -152,16 +149,13 @@ const phoneHeroPanel = window.matchMedia('(max-width: 560px)').matches
 const phoneHeroRevealObserver = phoneHeroPanel
     ? new IntersectionObserver((entries, observer) => {
         entries.forEach(entry => {
-            if (entry.isIntersecting) {
-                entry.target.classList.add('is-visible');
-                observer.unobserve(entry.target);
-            }
+            entry.target.classList.toggle('is-visible', entry.isIntersecting);
         });
     }, { threshold: 0, rootMargin: '0px 0px -35% 0px' })
     : null;
 
 document.querySelectorAll('.reveal-on-scroll').forEach((element, index) => {
-    element.style.setProperty('--reveal-delay', `${Math.min(index * 70, 420)}ms`);
+    element.style.setProperty('--reveal-delay', `${Math.min(index * 35, 140)}ms`);
     (element === phoneHeroPanel ? phoneHeroRevealObserver : revealObserver).observe(element);
 });
 
@@ -851,9 +845,13 @@ const contactAuthPrompt = document.getElementById('contact-auth-prompt');
 function updateRequestAccount() {
     if (!estimateForm) return;
     const signedIn = isSignedIn() && Boolean(getAccount());
-    estimateForm.hidden = !signedIn;
+    estimateForm.hidden = false;
     if (contactAuthPrompt) contactAuthPrompt.hidden = signedIn;
-    if (!signedIn || !requestAccountCopy) return;
+    if (!requestAccountCopy) return;
+    if (!signedIn) {
+        requestAccountCopy.textContent = 'An account is optional. Send your brief first.';
+        return;
+    }
 
     const account = getAccount();
     const name = `${account.firstName || ''} ${account.lastName || ''}`.trim() || 'Client';
@@ -876,14 +874,11 @@ if (estimateForm) {
 
     estimateForm.addEventListener('submit', async event => {
         event.preventDefault();
-        if (!isSignedIn()) {
-            if (estimateStatus) estimateStatus.textContent = 'Sign in before sending a request.';
-            updateRequestAccount();
-            return;
-        }
+        if (estimateSubmit?.disabled) return;
         if (estimateSubmit) {
             estimateSubmit.disabled = true;
-            estimateSubmit.textContent = 'Sending request...';
+            estimateSubmit.setAttribute('aria-busy', 'true');
+            estimateSubmit.innerHTML = '<span class="submit-spinner" aria-hidden="true"></span> Sending request…';
         }
         if (estimateStatus) estimateStatus.textContent = 'Sending your project details securely...';
 
@@ -895,10 +890,19 @@ if (estimateForm) {
             });
             const result = await response.json();
             if (!response.ok || result.success === false) throw new Error(result.error || result.message || 'Unable to send request.');
-            window.location.href = '/success';
+            if (estimateSubmit) {
+                estimateSubmit.removeAttribute('aria-busy');
+                estimateSubmit.classList.add('is-sent');
+                estimateSubmit.innerHTML = `<i class="fa-solid fa-check" aria-hidden="true"></i> ${response.status === 202 ? 'Request Received!' : 'Message Sent!'}`;
+            }
+            if (estimateStatus) estimateStatus.textContent = result.message || 'Your project details have been received. We’ll follow up by email.';
+            const onboarding = document.getElementById('optional-onboarding');
+            if (onboarding) onboarding.hidden = isSignedIn();
+            estimateForm.reset();
         } catch (error) {
             if (estimateSubmit) {
                 estimateSubmit.disabled = false;
+                estimateSubmit.removeAttribute('aria-busy');
                 estimateSubmit.textContent = 'Send request';
             }
             if (estimateStatus) estimateStatus.textContent = error.message || 'Unable to send request. Please try again.';
@@ -988,6 +992,7 @@ function renderAdminProjects() {
         if (deleteButton && currentAccountIsAdmin()) deleteButton.hidden = false;
 
         workGrid.append(card);
+        revealObserver.observe(card);
     });
     workCards = [...document.querySelectorAll('[data-work-card]')];
     if (workResults) workResults.textContent = `${workCards.length} project${workCards.length === 1 ? '' : 's'}`;
@@ -1187,6 +1192,7 @@ function loadAdminProject(projectIndex) {
     document.getElementById('admin-project-focus').value = project.focus || whatBuilt.focus || '';
     document.getElementById('admin-project-build-title').value = project.buildTitle || whatBuilt.title || whatBuilt.buildTitle || '';
     document.getElementById('admin-project-build-description').value = project.buildDescription || whatBuilt.description || whatBuilt.buildDescription || '';
+    for (const key of ['problem', 'solution', 'impact', 'tools']) document.getElementById(`admin-project-${key}`).value = project[key] || '';
     setProjectType(project.projectType || project.type || 'website');
     adminProjectSubmit.textContent = 'Save project changes';
 }
@@ -1227,6 +1233,7 @@ if (adminProjectForm) {
             focus: document.getElementById('admin-project-focus')?.value.trim(),
             buildTitle: document.getElementById('admin-project-build-title')?.value.trim(),
             buildDescription: document.getElementById('admin-project-build-description')?.value.trim(),
+            ...Object.fromEntries(['problem', 'solution', 'impact', 'tools'].map(key => [key, document.getElementById(`admin-project-${key}`).value.trim()])),
             projectType: selectedProjectType
         };
         const isEditing = adminProjectExisting?.value !== '';
@@ -1752,6 +1759,25 @@ if (projectDetail) {
         document.querySelector('[data-detail-focus]').textContent = project.focus || whatBuilt.focus || '';
         const detailLink = projectDetail.querySelector('[data-detail-link]');
         if (project.link) { detailLink.href = project.link; detailLink.hidden = false; } else detailLink.hidden = true;
+        const caseStudy = document.getElementById('project-case-study');
+        if (caseStudy) {
+            caseStudy.hidden = false;
+            document.querySelector('[data-case-problem]').textContent = project.problem || 'Client challenge details will be added to this case study.';
+            document.querySelector('[data-case-solution]').textContent = project.solution || project.buildDescription || project.description;
+            document.querySelector('[data-case-impact]').textContent = project.impact || 'Measured results have not been published for this project yet.';
+            document.querySelector('[data-case-tools]').textContent = project.tools ? `Tools: ${project.tools}` : '';
+        }
+        const preview = document.getElementById('project-preview');
+        const frame = document.getElementById('project-preview-frame');
+        if (preview && frame && project.link) {
+            try {
+                const previewURL = new URL(project.link);
+                if (['http:', 'https:'].includes(previewURL.protocol) && previewURL.origin !== location.origin && (location.protocol !== 'https:' || previewURL.protocol === 'https:')) {
+                    frame.src = previewURL.href;
+                    preview.hidden = false;
+                }
+            } catch { /* Invalid URLs never reach the frame. */ }
+        }
         document.querySelector('[data-detail-tags]').hidden = false;
         if (detailStatus) detailStatus.hidden = true;
     }
