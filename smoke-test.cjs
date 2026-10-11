@@ -161,6 +161,16 @@ const post = (route, body, cookie) => fetch(base + route, {
     for (const publicPath of ['/services', '/style.css', '/script.js', '/enhancements.js', '/logo-upload.js', '/vendor/pako.min.js', '/vendor/utif.js', '/vendor/heic-to.js', '/vendor/heic-to.LICENSE', '/sitemap.xml', '/robots.txt', '/api/auth/providers', '/img/crimson-logo.jpg']) {
         assert.equal((await fetch(base + publicPath)).status, 200, publicPath);
     }
+    const robots = await (await fetch(base + '/robots.txt')).text();
+    assert.ok(robots.includes('Disallow: /api/'));
+    for (const page of ['portal', 'success', 'unsubscribe']) {
+        assert.ok(!robots.includes(`Disallow: /${page}`), 'Google must be able to crawl utility pages to read noindex');
+        for (const alias of [`/${page}`, `/${page}.html`, `/${page}?source=google`]) {
+            const result = await fetch(base + alias, { redirect: 'manual' });
+            assert.equal(result.headers.get('x-robots-tag'), 'noindex, nofollow', alias);
+        }
+    }
+    assert.equal((await fetch(base + '/')).headers.get('x-robots-tag'), null, 'Homepage stays indexable');
     const sitemap = await (await fetch(base + '/sitemap.xml')).text();
     for (const route of ['/', '/services', '/projects', '/about', '/contact']) assert.ok(sitemap.includes(`<loc>${base}${route}</loc>`));
     assert.ok(!sitemap.includes('/portal'));

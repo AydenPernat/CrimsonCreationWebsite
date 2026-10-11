@@ -28,6 +28,10 @@ app.use('/api/backups', express.json({ limit: '13mb' }));
 app.use(express.json({ limit: '100kb' }));
 app.set('trust proxy', 1);
 app.use((_request, response, next) => {
+    // Crawlers must be able to read noindex on utility pages, including aliases.
+    if (/^\/(portal|success|unsubscribe)(\.html)?\/?$/i.test(_request.path)) {
+        response.setHeader('X-Robots-Tag', 'noindex, nofollow');
+    }
     response.setHeader('X-Content-Type-Options', 'nosniff');
     response.setHeader('X-Frame-Options', 'DENY');
     response.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
@@ -84,7 +88,7 @@ const writeData = data => store.write(data);
 
 app.get('/robots.txt', (_request, response) => {
     const origin = new URL(process.env.CRIMSON_PUBLIC_URL || 'https://www.crimsoncreations.dev').origin;
-    response.type('text/plain').send(`User-agent: *\nAllow: /\nDisallow: /api/\nDisallow: /portal\nDisallow: /success\nDisallow: /unsubscribe\nSitemap: ${origin}/sitemap.xml\n`);
+    response.type('text/plain').send(`User-agent: *\nAllow: /\nDisallow: /api/\nSitemap: ${origin}/sitemap.xml\n`);
 });
 api('get', '/sitemap.xml', (_request, response) => {
     const origin = new URL(process.env.CRIMSON_PUBLIC_URL || 'https://www.crimsoncreations.dev').origin;
