@@ -41,7 +41,7 @@ GITHUB_CLIENT_SECRET=your-development-github-client-secret
 
 On Render, use `CRIMSON_PUBLIC_URL=https://www.crimsoncreations.dev` and the production GitHub credentials. Redirect URIs must match the public URL exactly, including `www`, `localhost` versus `127.0.0.1`, and the port. If the production site uses the apex domain instead, change the public URL, canonical links, schema URLs, sitemap template URLs, and registered callbacks together.
 
-New Google/GitHub users get a verified portal account. Existing password accounts should sign in once with their password, then choose **Connect Google or GitHub** inside their dashboard, using the same verified email. This protects existing accounts from silent email-based merging.
+New Google/GitHub users get a verified portal account. Existing password accounts should sign in once with their password, then choose **Connect Google or GitHub** inside their dashboard. Provider emails may differ from the primary portal email. Linking requires an active portal sign-in and a verified provider identity; provider accounts already linked to another portal cannot be reused.
 
 ## Free spam protection
 

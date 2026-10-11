@@ -51,7 +51,7 @@
     }
     const oauthButtons = [...document.querySelectorAll('[data-oauth]')];
     if (oauthButtons.length) {
-        const authErrors = { unavailable: 'This sign-in provider is not available yet. Use your password.', invalid: 'Your sign-in session expired. Please try again.', cancelled: 'Provider sign-in was cancelled. You can try again.', existing: 'This email already has a portal account. Sign in with your password, then connect the provider from your dashboard.', link: 'Unable to connect this provider. Use the same verified email as your portal account.', provider: 'Unable to complete provider sign-in. Try again or use your password.' };
+        const authErrors = { unavailable: 'This sign-in provider is not available yet. Use your password.', invalid: 'Your sign-in session expired. Please try again.', cancelled: 'Provider sign-in was cancelled. You can try again.', existing: 'This email already has a portal account. Sign in with your password, then connect the provider from your dashboard.', link: 'Unable to connect this provider. Sign in again and try connecting from your dashboard. A provider account already linked to another portal cannot be connected here.', provider: 'Unable to complete provider sign-in. Try again or use your password.' };
         const error = authErrors[params.get('authError')];
         if (error) document.querySelectorAll('[data-provider-status]').forEach(status => { status.textContent = error; });
         fetch('/api/auth/providers').then(response => {

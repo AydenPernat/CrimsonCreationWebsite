@@ -188,6 +188,7 @@ function publicAccount(account) {
     const isAdmin = isOwner || readData().admins.some(admin => admin.accountId === account.id);
     return { firstName: account.firstName, lastName: account.lastName, email, role: isOwner ? 'owner' : isAdmin ? 'admin' : 'client', newsletterOptIn: account.newsletterOptIn === true,
         connectedProviders: { google: Boolean(account.oauthGoogleId), github: Boolean(account.oauthGithubId) },
+        providerEmails: { google: account.oauthGoogleEmail || '', github: account.oauthGithubEmail || '' },
         needsPassword: account.passwordSet === false || !(account.passwordHash || account.hash) };
 }
 

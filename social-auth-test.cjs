@@ -10,6 +10,7 @@ test('OAuth state, PKCE, verified identities, account linking and single-use mag
     process.env.CRIMSON_PUBLIC_URL = 'https://studio.test';
     const originalFetch = global.fetch;
     let data = { accounts: [], sessions: [], oauthFlows: [] };
+    let githubId = 42, githubEmail = 'git@test.invalid';
     let viewer = null, calls = [], profile = { sub: 'google-1', email: 'client@test.invalid', email_verified: true, name: 'Test Client' };
     const hashToken = token => crypto.createHash('sha256').update(token).digest('hex');
     const routes = {};
@@ -35,8 +36,8 @@ test('OAuth state, PKCE, verified identities, account linking and single-use mag
         calls.push({ url, options });
         const body = url.endsWith('/token') || url.includes('access_token') ? { access_token: 'provider-token' }
             : url.endsWith('/userinfo') ? profile
-            : url.endsWith('/user/emails') ? [{ email: 'git@test.invalid', verified: true, primary: true }]
-            : url.endsWith('/user') ? { id: 42, name: 'Git Client' } : { id: 'email-id' };
+            : url.endsWith('/user/emails') ? [{ email: githubEmail, verified: true, primary: true }]
+            : url.endsWith('/user') ? { id: githubId, name: 'Git Client' } : { id: 'email-id' };
         return { ok: true, json: async () => body };
     };
     try {
@@ -60,32 +61,52 @@ test('OAuth state, PKCE, verified identities, account linking and single-use mag
         profile = { ...profile, sub: 'google-2' };
         assert.equal((await run('get', '/api/auth/oauth/:provider/callback', flow)).location, '/portal?authError=existing');
         assert.equal(data.accounts.length, 1, 'Existing email is not auto-linked');
+        data.accounts[0].email = 'client@icloud.invalid';
         viewer = data.accounts[0];
         flow = await begin('github');
-        assert.equal((await run('get', '/api/auth/oauth/:provider/callback', flow)).location, '/portal?authError=link', 'Different provider email cannot be linked');
+        assert.equal((await run('get', '/api/auth/oauth/:provider/callback', flow)).location, '/portal', 'An authenticated client can connect a different verified provider email');
+        assert.equal(data.accounts[0].oauthGithubEmail, 'git@test.invalid');
+        assert.equal(data.accounts[0].email, 'client@icloud.invalid', 'Connecting a provider keeps the primary contact email');
+        assert.equal(data.accounts[0].oauthGoogleEmail, 'client@test.invalid', 'Primary, Google, and GitHub emails can all differ');
+        assert.equal(data.accounts.length, 1, 'Linking a different email keeps one portal account');
+        viewer = null;
+        flow = await begin('github');
+        assert.equal((await run('get', '/api/auth/oauth/:provider/callback', flow)).location, '/portal');
+        assert.equal(data.accounts.length, 1, 'Signing in with the linked identity reuses the portal account');
         viewer = null;
         flow = await begin('google');
         profile = { ...profile, email: 'unverified@test.invalid', email_verified: false };
         assert.equal((await run('get', '/api/auth/oauth/:provider/callback', flow)).location, '/portal?authError=provider');
         assert.equal(data.accounts.length, 1);
+        githubId = 43;
+        githubEmail = 'another-git@test.invalid';
         flow = await begin('github');
         assert.equal((await run('get', '/api/auth/oauth/:provider/callback', flow)).location, '/portal');
-        assert.equal(data.accounts[1].oauthGithubId, '42');
+        assert.equal(data.accounts[1].oauthGithubId, '43');
         viewer = data.accounts[1];
-        profile = { sub: 'google-git-client', email: 'git@test.invalid', email_verified: true, name: 'Git Client' };
+        profile = { sub: 'google-git-client', email: 'different-google@test.invalid', email_verified: true, name: 'Git Client' };
         flow = await begin('google');
         assert.equal((await run('get', '/api/auth/oauth/:provider/callback', flow)).location, '/portal');
-        assert.equal(data.accounts[1].oauthGoogleId, 'google-git-client', 'Signed-in client can connect a matching verified identity');
+        assert.equal(data.accounts[1].oauthGoogleId, 'google-git-client', 'Signed-in client can connect a different verified Google email');
+        assert.equal(data.accounts[1].oauthGoogleEmail, 'different-google@test.invalid');
         assert.equal(data.accounts.length, 2, 'Connecting a provider does not create another account');
+        profile = { ...profile, sub: 'google-1', email: 'client@test.invalid' };
+        flow = await begin('google');
+        assert.equal((await run('get', '/api/auth/oauth/:provider/callback', flow)).location, '/portal?authError=link', 'A provider identity cannot be moved from another portal account');
+        assert.equal(data.accounts[1].oauthGoogleId, 'google-git-client');
+        viewer = data.accounts[0];
+        flow = await begin('google');
+        viewer = null;
+        assert.equal((await run('get', '/api/auth/oauth/:provider/callback', flow)).location, '/portal?authError=link', 'Linking requires the original portal sign-in to remain active');
         viewer = null;
         const missing = await run('post', '/api/auth/magic-link', { body: { email: 'missing@test.invalid' } });
-        const existing = await run('post', '/api/auth/magic-link', { body: { email: 'client@test.invalid' } });
+        const existing = await run('post', '/api/auth/magic-link', { body: { email: 'client@icloud.invalid' } });
         assert.deepEqual(existing.body, missing.body, 'Email request does not disclose account existence');
         const email = JSON.parse(calls.at(-1).options.body);
         const token = email.text.match(/#magic=([a-f0-9]{64})/)[1];
         assert.equal(data.accounts[0].magicTokenHash, hashToken(token));
         const emailsBefore = calls.length;
-        await run('post', '/api/auth/magic-link', { body: { email: 'client@test.invalid' } });
+        await run('post', '/api/auth/magic-link', { body: { email: 'client@icloud.invalid' } });
         assert.equal(calls.length, emailsBefore, 'Cooldown prevents duplicate email');
         data.accounts[0].magicExpiresAt = Date.now() - 1;
         assert.equal((await run('post', '/api/auth/magic-link/consume', { body: { token } })).statusCode, 400);

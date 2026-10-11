@@ -478,7 +478,10 @@ function showPortalPreview() {
     const fullName = `${account.firstName || ''} ${account.lastName || ''}`.trim() || 'Client';
     const providers = account.connectedProviders || {};
     const connected = document.getElementById('connected-providers');
-    if (connected) connected.textContent = ['google', 'github'].filter(key => providers[key]).map(key => (key === 'google' ? 'Google' : 'GitHub') + ' connected ✓').join(' · ');
+    if (connected) connected.textContent = ['google', 'github'].filter(key => providers[key]).map(key => {
+        const email = account.providerEmails?.[key];
+        return (key === 'google' ? 'Google' : 'GitHub') + ' connected ✓' + (email ? ` (${email})` : '');
+    }).join(' · ');
     const notice = document.getElementById('password-setup-notice');
     if (notice) notice.hidden = !account.needsPassword;
     document.querySelectorAll('#portal-preview [data-oauth]').forEach(button => {

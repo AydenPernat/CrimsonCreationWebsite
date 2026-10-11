@@ -84,7 +84,7 @@ function registerSocialAuth({ api, readData, writeData, currentAccount, createSe
             if (linking) {
                 if (account && account.id !== signedIn.id) return res.redirect('/portal?authError=link');
                 account = latest.accounts.find(item => item.id === signedIn.id);
-                if (!account.verifiedAt || normalizeEmail(account.email) !== email || (account[identityKey] && account[identityKey] !== subject)) return res.redirect('/portal?authError=link');
+                if (!account?.verifiedAt || (account[identityKey] && account[identityKey] !== subject)) return res.redirect('/portal?authError=link');
             } else if (!account) {
                 // Existing accounts must prove their current login before connecting a provider.
                 if (latest.accounts.some(item => normalizeEmail(item.email) === email)) return res.redirect('/portal?authError=existing');
@@ -95,6 +95,7 @@ function registerSocialAuth({ api, readData, writeData, currentAccount, createSe
             }
             if (!account.verifiedAt) throw new Error('Unverified account');
             account[identityKey] = subject;
+            account[provider === 'google' ? 'oauthGoogleEmail' : 'oauthGithubEmail'] = email;
             writeData(latest);
             res.setHeader('Set-Cookie', [flowCookie(''), cookie(createSession(account, { allowPortalEntry: flow.next === '/portal' }))]);
             res.redirect(flow.next);
