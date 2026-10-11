@@ -238,7 +238,7 @@
                                 <input id="admin-project-name" type="text" autocomplete="off" placeholder="Example: Northside Coffee" required>
                             </div>
                             <div class="field">
-                                <label for="admin-project-logo">Project logo (optional)</label><input id="admin-project-logo" type="text" placeholder="https://example.com/logo.png"><label for="admin-project-logo-file">Or upload a logo</label><input id="admin-project-logo-file" type="file" accept="image/png,image/jpeg,image/webp"><button id="remove-project-logo" class="btn btn-secondary" type="button">Remove logo / use droplet</button><p id="project-logo-status" class="portal-status" role="status">Leave empty to keep the droplet.</p></div><div class="field"><label for="admin-project-description">Short description</label>
+                                <label for="admin-project-logo">Project logo (optional)</label><input id="admin-project-logo" type="text" placeholder="https://example.com/logo.png"><label for="admin-project-logo-file">Or upload a logo</label><input id="admin-project-logo-file" type="file" accept="image/*,.png,.jpg,.jpeg,.jfif,.webp,.gif,.svg,.avif,.bmp,.ico,.tif,.tiff,.heic,.heif"><button id="remove-project-logo" class="btn btn-secondary" type="button">Remove logo / use droplet</button><p id="project-logo-status" class="portal-status" role="status">Leave empty to keep the droplet. PNG, JPG, WebP, GIF, SVG, AVIF, BMP, ICO, TIFF or HEIC/HEIF, up to 10 MB.</p></div><div class="field"><label for="admin-project-description">Short description</label>
                                 <textarea id="admin-project-description" autocomplete="off" rows="3" placeholder="What did this project help the client do?" required></textarea>
                             </div>
                             <div class="field">
@@ -449,8 +449,9 @@
             <span>(c) 2026 Crimson Creations. All rights reserved.</span>
         </div>
     </footer>
-<script src="script.js?v=46"></script>
-<script src="enhancements.js?v=7" defer></script>
+<script src="script.js?v=48"></script>
+<script src="enhancements.js?v=9" defer></script>
+<script src="logo-upload.js?v=2" defer></script>
     <script src="portal-tools.js?v=1"></script>
 </body>
 

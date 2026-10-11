@@ -21,15 +21,17 @@ function registerSocialAuth({ api, readData, writeData, currentAccount, createSe
     api('get', '/api/auth/oauth/:provider', (req, res) => {
         res.setHeader('Cache-Control', 'no-store');
         const provider = req.params.provider;
-        if (!enabled(provider)) return res.redirect('/portal?authError=unavailable');
+        if (!enabled(provider)) return res.status(503).json({ error: 'This sign-in provider is not configured yet. Use another sign-in method.' });
         if (!allowAuthAttempt(req, res)) return;
+        const tab = String(req.headers['x-crimson-tab'] || '');
+        if (!/^[a-f0-9]{64}$/.test(tab)) return res.status(400).json({ error: 'Reload the page before using social sign-in.' });
         const state = crypto.randomBytes(32).toString('hex');
         const browserToken = crypto.randomBytes(32).toString('hex');
         const verifier = crypto.randomBytes(32).toString('base64url');
         const account = currentAccount(req);
         const data = readData();
         data.oauthFlows = (data.oauthFlows || []).filter(flow => flow.expiresAt > Date.now());
-        data.oauthFlows.push({ stateHash: hashToken(state), browserHash: hashToken(browserToken), provider, verifier,
+        data.oauthFlows.push({ stateHash: hashToken(state), browserHash: hashToken(browserToken), tabHash: hashToken(tab), provider, verifier,
             accountId: account?.id || '', next: req.query.next === 'contact' ? '/contact' : '/portal', expiresAt: Date.now() + 600000 });
         writeData(data);
         const url = new URL(provider === 'google' ? 'https://accounts.google.com/o/oauth2/v2/auth' : 'https://github.com/login/oauth/authorize');
@@ -38,7 +40,7 @@ function registerSocialAuth({ api, readData, writeData, currentAccount, createSe
             code_challenge: crypto.createHash('sha256').update(verifier).digest('base64url'), code_challenge_method: 'S256' };
         for (const [key, value] of Object.entries(params)) url.searchParams.set(key, value);
         res.setHeader('Set-Cookie', flowCookie(browserToken));
-        res.redirect(url.toString());
+        res.json({ url: url.toString() });
     });
     api('get', '/api/auth/oauth/:provider/callback', async (req, res) => {
         res.setHeader('Cache-Control', 'no-store');
@@ -78,7 +80,7 @@ function registerSocialAuth({ api, readData, writeData, currentAccount, createSe
             const latest = readData();
             const identityKey = provider === 'google' ? 'oauthGoogleId' : 'oauthGithubId';
             let account = latest.accounts.find(item => item[identityKey] === subject);
-            const signedIn = currentAccount(req);
+            const signedIn = currentAccount(req, flow.tabHash);
             const linking = flow.accountId && signedIn?.id === flow.accountId;
             if (flow.accountId && !linking) return res.redirect('/portal?authError=link');
             if (linking) {
@@ -97,7 +99,7 @@ function registerSocialAuth({ api, readData, writeData, currentAccount, createSe
             account[identityKey] = subject;
             account[provider === 'google' ? 'oauthGoogleEmail' : 'oauthGithubEmail'] = email;
             writeData(latest);
-            res.setHeader('Set-Cookie', [flowCookie(''), cookie(createSession(account, { allowPortalEntry: flow.next === '/portal' }))]);
+            res.setHeader('Set-Cookie', [flowCookie(''), cookie(createSession(account, { tabHash: flow.tabHash, browserToken: req.headers.cookie?.match(/(?:^|;\s*)crimson_session=([^;]+)/)?.[1] }))]);
             res.redirect(flow.next);
         } catch {
             res.redirect('/portal?authError=provider');
@@ -134,13 +136,15 @@ function registerSocialAuth({ api, readData, writeData, currentAccount, createSe
     api('post', '/api/auth/magic-link/consume', (req, res) => {
         res.setHeader('Cache-Control', 'no-store');
         if (!allowAuthAttempt(req, res)) return;
+        const tab = String(req.headers['x-crimson-tab'] || '');
+        if (!/^[a-f0-9]{64}$/.test(tab)) return res.status(400).json({ error: 'Reload the page before signing in.' });
         const token = String(req.body?.token || '');
         const data = readData();
         const account = data.accounts.find(item => item.verifiedAt && item.magicTokenHash === hashToken(token) && item.magicExpiresAt > Date.now());
         if (!account || !/^[a-f0-9]{64}$/.test(token)) return res.status(400).json({ error: 'This sign-in link is invalid or expired. Request another link.' });
         delete account.magicTokenHash; delete account.magicExpiresAt;
         writeData(data);
-        res.setHeader('Set-Cookie', cookie(createSession(account, { allowPortalEntry: true })));
+        res.setHeader('Set-Cookie', cookie(createSession(account, { tabHash: hashToken(tab), browserToken: req.headers.cookie?.match(/(?:^|;\s*)crimson_session=([^;]+)/)?.[1] }))); 
         res.json({ ok: true });
     });
 }

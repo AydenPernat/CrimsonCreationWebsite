@@ -67,3 +67,11 @@ The sign-in screen now uses Google, GitHub, or password fields. The email magic-
 Validation: `npm test` includes database persistence, guest/honeypot contact behavior, account recovery, backup/restore, OAuth state/PKCE/account linking, magic-link expiry/replay, and local asset/route checks. Real OAuth callbacks, production email delivery, and actual Lighthouse metrics require a deployed test.
 
 See [SETUP.md](SETUP.md) for the exact OAuth, free spam protection, sitemap deployment, and Search Console steps.
+
+## Project logo uploads
+
+Deploy `logo-upload.js` with the updated portal and server, and run `npm ci` to install the new decoders. Supported upload extensions: PNG, JPG/JPEG/JFIF, WebP, GIF, SVG, AVIF, BMP, ICO, TIF/TIFF, HEIC and HEIF. Files are limited to 10 MB; decoded images are limited to 40 million pixels. Logos become still PNG/WebP thumbnails with a maximum side of 256 pixels before saving. Animation is not retained. Browser-native format support can vary; PSD, AI, EPS, PDF and camera RAW files should be exported as PNG or SVG first. Leaving the logo empty keeps the droplet.
+
+TIFF uses [UTIF.js](https://github.com/photopea/UTIF.js) and pako (MIT licenses). HEIC/HEIF uses the unmodified [heic-to CSP build](https://github.com/hoppergee/heic-to), licensed under LGPL-3.0; its license is available at `/vendor/heic-to.LICENSE`, and matching source is included in the installed npm package and upstream repository. These converters load only when needed. The CSP allows their local blob worker without allowing unsafe script evaluation. Original images and provider tokens are not sent to an image conversion service.
+
+Review fixes: project submissions cannot run while image conversion or a save is pending; removing a logo or changing the selected project cancels stale conversion results. Backup restore preserves current password status and linked Google/GitHub identities for existing accounts. An unconfigured OAuth provider returns a clear API error. The compatible proxy-addr dependency update resolves the audit finding; `npm audit` reports zero known vulnerabilities at this check.

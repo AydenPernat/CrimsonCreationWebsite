@@ -428,10 +428,32 @@ const portalNewsletterToggle = document.getElementById('portal-newsletter-toggle
 const portalNewsletterDescription = document.getElementById('portal-newsletter-description');
 const portalNewsletterStatus = document.getElementById('portal-newsletter-status');
 let currentSession = null;
+const crimsonTabReady = (async () => {
+    const random = () => [...crypto.getRandomValues(new Uint8Array(32))].map(byte => byte.toString(16).padStart(2, '0')).join('');
+    let token;
+    try { token = sessionStorage.getItem('crimson_tab'); } catch {}
+    if (!/^[a-f0-9]{64}$/.test(token || '')) token = random();
+    // Detect a new tab that inherited sessionStorage from its opener or a duplicated tab.
+    if ('BroadcastChannel' in window) {
+        const channel = new BroadcastChannel('crimson-tab-identity');
+        const instance = random();
+        let acceptingClaimReplies = true;
+        channel.onmessage = ({ data }) => {
+            if (!data || data.instance === instance || data.token !== token) return;
+            if (data.type === 'claim') channel.postMessage({ type: 'occupied', token, instance, target: data.instance });
+            if (acceptingClaimReplies && data.type === 'occupied' && data.target === instance) { token = random(); try { sessionStorage.setItem('crimson_tab', token); } catch {} }
+        };
+        channel.postMessage({ type: 'claim', token, instance });
+        await new Promise(resolve => setTimeout(resolve, 100));
+        acceptingClaimReplies = false;
+    }
+    try { sessionStorage.setItem('crimson_tab', token); } catch {}
+    return token;
+})();
 const apiRequest = async (url, options = {}) => {
     let response;
     try {
-        response = await fetch(url, { credentials: 'same-origin', headers: { 'Content-Type': 'application/json', ...(options.headers || {}) }, ...options });
+        response = await fetch(url, { ...options, credentials: 'same-origin', headers: { 'Content-Type': 'application/json', 'X-Crimson-Tab': await crimsonTabReady, ...(options.headers || {}) } });
     } catch {
         throw new Error('The site connection is unavailable. Start the local server and try again.');
     }
@@ -905,7 +927,7 @@ if (estimateForm) {
             const response = await fetch(estimateForm.action, {
                 method: 'POST',
                 body: new URLSearchParams(new FormData(estimateForm)),
-                headers: { Accept: 'application/json', 'Content-Type': 'application/x-www-form-urlencoded' }
+                headers: { Accept: 'application/json', 'Content-Type': 'application/x-www-form-urlencoded', 'X-Crimson-Tab': await crimsonTabReady }
             });
             const result = await response.json();
             if (!response.ok || result.success === false) throw new Error(result.error || result.message || 'Unable to send request.');
@@ -1249,7 +1271,8 @@ function updateAdminProjectCapacity() {
 if (adminProjectForm) {
     adminProjectForm.addEventListener('submit', async event => {
         event.preventDefault();
-        if (!currentAccountIsAdmin()) return;
+        if (!currentAccountIsAdmin() || adminProjectSubmit?.disabled) return;
+        adminProjectSubmit.disabled = true;
         const status = document.getElementById('admin-project-status');
 
         const project = {
@@ -1281,6 +1304,7 @@ if (adminProjectForm) {
             if (adminProjectSubmit) adminProjectSubmit.textContent = 'Add project';
             await loadProjectsFromServer();
         } catch (error) { if (status) status.textContent = error.message; }
+        finally { adminProjectSubmit.disabled = false; }
     });
 }
 

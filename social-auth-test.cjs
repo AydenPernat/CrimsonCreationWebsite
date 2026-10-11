@@ -21,12 +21,12 @@ test('OAuth state, PKCE, verified identities, account linking and single-use mag
         hashPassword: () => ({ passwordSalt: 'a'.repeat(32), passwordHash: 'b'.repeat(128) }), allowAuthAttempt: () => true, secureCookie: '; Secure', port: 3000 });
     const run = async (method, route, req = {}) => {
         const result = { statusCode: 200, headers: {}, setHeader(key, value) { this.headers[key] = value; return this; }, status(code) { this.statusCode = code; return this; }, json(value) { this.body = value; return this; }, redirect(url) { this.location = url; return this; } };
-        await routes[`${method} ${route}`]({ params: {}, query: {}, headers: {}, body: {}, ...req }, result);
+        await routes[`${method} ${route}`]({ params: {}, query: {}, headers: { 'x-crimson-tab': 'a'.repeat(64) }, body: {}, ...req }, result);
         return result;
     };
     const begin = async provider => {
         const result = await run('get', '/api/auth/oauth/:provider', { params: { provider } });
-        const url = new URL(result.location);
+        const url = new URL(result.body.url);
         const browserCookie = result.headers['Set-Cookie'].split(';')[0];
         assert.equal(url.searchParams.get('code_challenge_method'), 'S256');
         assert.ok(result.headers['Set-Cookie'].includes('HttpOnly'));
@@ -114,7 +114,7 @@ test('OAuth state, PKCE, verified identities, account linking and single-use mag
         assert.equal((await run('post', '/api/auth/magic-link/consume', { body: { token } })).statusCode, 200);
         assert.equal((await run('post', '/api/auth/magic-link/consume', { body: { token } })).statusCode, 400);
         delete process.env.GOOGLE_CLIENT_ID;
-        assert.equal((await run('get', '/api/auth/oauth/:provider', { params: { provider: 'google' } })).location, '/portal?authError=unavailable');
+        assert.equal((await run('get', '/api/auth/oauth/:provider', { params: { provider: 'google' } })).statusCode, 503);
     } finally {
         global.fetch = originalFetch;
         for (const [key, value] of Object.entries(saved)) { if (value === undefined) delete process.env[key]; else process.env[key] = value; }

@@ -32,7 +32,7 @@ app.use((_request, response, next) => {
     response.setHeader('X-Frame-Options', 'DENY');
     response.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
     response.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
-    response.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://fonts.googleapis.com; font-src 'self' https://cdnjs.cloudflare.com https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self'; frame-src https: http:; form-action 'self'");
+    response.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://fonts.googleapis.com; font-src 'self' https://cdnjs.cloudflare.com https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self'; worker-src 'self' blob:; frame-src https: http:; form-action 'self'");
     if (process.env.NODE_ENV === 'production') response.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
     next();
 });
@@ -56,19 +56,8 @@ Object.entries(cleanPageRoutes).forEach(([cleanPath, fileName]) => {
     if (cleanPath === '/portal') return;
     app.get(cleanPath, (_request, response) => response.sendFile(path.join(__dirname, fileName)));
 });
-api('get', '/portal', (request, response) => {
+app.get('/portal', (_request, response) => {
     response.setHeader('Cache-Control', 'no-store');
-    const token = request.headers.cookie?.match(/(?:^|;\s*)crimson_session=([^;]+)/)?.[1];
-    if (token) {
-        const data = readData();
-        const session = data.sessions?.find(item => item.tokenHash === hashToken(token));
-        if (session?.allowPortalEntry && session.expiresAt > Date.now()) session.allowPortalEntry = false;
-        else {
-            data.sessions = (data.sessions || []).filter(item => item.tokenHash !== hashToken(token));
-            response.setHeader('Set-Cookie', `crimson_session=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0${secureCookie}`);
-        }
-        writeData(data);
-    }
     response.sendFile(path.join(__dirname, 'portal.html'));
 });
 app.get('/home', (_request, response) => response.redirect('/'));
@@ -77,10 +66,18 @@ Object.entries(cleanPageRoutes).forEach(([cleanPath, fileName]) => {
     if (cleanPath === '/') return;
     app.get(`/${fileName}`, (request, response) => response.redirect(301, `${cleanPath}${request.url.slice(fileName.length + 1)}`));
 });
-['style.css', 'script.js', 'success.js', 'portal-tools.js', 'enhancements.js'].forEach(fileName => {
+['style.css', 'script.js', 'success.js', 'portal-tools.js', 'enhancements.js', 'logo-upload.js'].forEach(fileName => {
     app.get(`/${fileName}`, (_request, response) => response.sendFile(path.join(__dirname, fileName)));
 });
 app.use('/img', express.static(path.join(__dirname, 'img')));
+const imageVendors = {
+    'pako.min.js': path.join(path.dirname(require.resolve('pako/package.json')), 'dist/pako.min.js'),
+    'utif.js': require.resolve('utif'),
+    'heic-to.js': require.resolve('heic-to/csp'),
+    'heic-to.LICENSE': path.join(path.dirname(require.resolve('heic-to/csp')), '../../LICENSE')
+};
+Object.entries(imageVendors).forEach(([name, file]) => app.get(`/vendor/${name}`, (_request, response) => response.sendFile(file)));
+
 
 const readData = () => store.read();
 const writeData = data => store.write(data);
@@ -216,19 +213,23 @@ function deleteAccountData(data, accountId) {
     return { ok: true, email: targetEmail };
 }
 
-function currentAccount(request) {
+function currentAccount(request, oauthTabHash) {
     const token = request.headers.cookie?.match(/crimson_session=([^;]+)/)?.[1];
     if (!token) return null;
     const data = readData();
-    const session = data.sessions?.find(item => item.tokenHash === hashToken(token) && item.expiresAt > Date.now());
+    const tab = String(request.headers['x-crimson-tab'] || '');
+    if (!oauthTabHash && !/^[a-f0-9]{64}$/.test(tab)) return null;
+    const tabHash = oauthTabHash || hashToken(tab);
+    const session = data.sessions?.find(item => item.tokenHash === hashToken(token) && item.tabHash === tabHash && item.expiresAt > Date.now());
     return session ? data.accounts.find(account => account.id === session.accountId) : null;
 }
 
-function createSession(account, { allowPortalEntry = false } = {}) {
-    const token = crypto.randomBytes(32).toString('hex');
+function createSession(account, { tabHash, browserToken = '' } = {}) {
+    if (!tabHash) throw new Error('A tab-bound session is required');
+    const token = /^[a-f0-9]{64}$/.test(browserToken) ? browserToken : crypto.randomBytes(32).toString('hex');
     const data = readData();
-    data.sessions = (data.sessions || []).filter(session => session.expiresAt > Date.now());
-    data.sessions.push({ accountId: account.id, tokenHash: hashToken(token), allowPortalEntry, expiresAt: Date.now() + 7 * 24 * 60 * 60 * 1000 });
+    data.sessions = (data.sessions || []).filter(session => session.expiresAt > Date.now() && !(session.tokenHash === hashToken(token) && session.tabHash === tabHash));
+    data.sessions.push({ accountId: account.id, tokenHash: hashToken(token), tabHash, expiresAt: Date.now() + 7 * 24 * 60 * 60 * 1000 });
     writeData(data);
     return token;
 }
@@ -292,7 +293,9 @@ api('post', '/api/auth/signin', (request, response) => {
     if (!account) return response.status(404).json({ error: 'No account was found for that email.' });
     if (typeof password !== 'string' || !passwordMatches(password, account)) return response.status(401).json({ error: 'The password is incorrect.' });
     if (!account.verifiedAt) return response.status(403).json({ error: 'Verify your email before signing in.' });
-    const token = createSession(account);
+    const tab = String(request.headers['x-crimson-tab'] || '');
+    if (!/^[a-f0-9]{64}$/.test(tab)) return response.status(400).json({ error: 'Reload the page before signing in.' });
+    const token = createSession(account, { tabHash: hashToken(tab), browserToken: request.headers.cookie?.match(/(?:^|;\s*)crimson_session=([^;]+)/)?.[1] });
     response.setHeader('Set-Cookie', `crimson_session=${token}; HttpOnly; SameSite=Lax; Path=/${secureCookie}`);
     response.json({ account: publicAccount(account) });
 });

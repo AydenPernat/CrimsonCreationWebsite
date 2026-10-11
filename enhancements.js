@@ -63,15 +63,18 @@
                 button.dataset.providerAvailable = String(enabled);
                 button.disabled = !enabled || button.dataset.connected === 'true';
                 if (!enabled && button.dataset.connected !== 'true') button.title = 'Provider setup is pending. Use your password.';
-                button.addEventListener('click', () => {
+                button.addEventListener('click', async () => {
                     const next = params.get('next') === 'contact' ? '?next=contact' : '';
-                    location.assign(`/api/auth/oauth/${button.dataset.oauth}${next}`);
+                    try {
+                        const result = await apiRequest(`/api/auth/oauth/${button.dataset.oauth}${next}`);
+                        location.assign(result.url);
+                    } catch (error) { const status = button.closest('[data-social-signin]').querySelector('[data-provider-status]'); if (status) status.textContent = error.message; }
                 });
             });
         }).catch(() => document.querySelectorAll('[data-provider-status]').forEach(status => { status.textContent = 'Social sign-in is temporarily unavailable.'; }));
     }
     const post = async (route, body) => {
-        const response = await fetch(route, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), signal: AbortSignal.timeout(20000) });
+        const response = await fetch(route, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Crimson-Tab': await crimsonTabReady }, body: JSON.stringify(body), signal: AbortSignal.timeout(20000) });
         const result = await response.json();
         if (!response.ok) throw new Error(result.error || 'Unable to complete sign-in.');
         return result;
@@ -105,29 +108,7 @@
         catch (error) { status.textContent = error.message; }
         finally { setup.disabled = false; }
     });
-    const fileInput = document.getElementById('admin-project-logo-file');
-    fileInput?.addEventListener('change', async () => {
-        const file = fileInput.files[0]; if (!file) return;
-        const status = document.getElementById('project-logo-status');
-        const save = document.getElementById('admin-project-submit'); save.disabled = true;
-        let objectUrl;
-        try {
-            if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type) || file.size > 5 * 1024 * 1024) throw new Error('Choose a PNG, JPG, or WebP under 5 MB.');
-            objectUrl = URL.createObjectURL(file);
-            const image = new Image(); image.src = objectUrl; await image.decode();
-            const canvas = document.createElement('canvas');
-            const scale = Math.min(1, 256 / Math.max(image.width, image.height));
-            canvas.width = Math.max(1, Math.round(image.width * scale)); canvas.height = Math.max(1, Math.round(image.height * scale));
-            canvas.getContext('2d').drawImage(image, 0, 0, canvas.width, canvas.height);
-            let logo = canvas.toDataURL('image/png');
-            if (logo.length > 60000) logo = canvas.toDataURL('image/webp', .8);
-            if (logo.length > 60000) throw new Error('This logo is too detailed. Choose a simpler or smaller image.');
-            document.getElementById('admin-project-logo').dataset.upload = logo;
-            document.getElementById('admin-project-logo').value = '';
-            status.textContent = 'Logo ready. Save the project to publish it.';
-        } catch (error) { status.textContent = error.message; fileInput.value = ''; }
-        finally { if (objectUrl) URL.revokeObjectURL(objectUrl); save.disabled = false; }
-    });
+
 })();
 
 if (location.pathname === '/portal' || location.pathname === '/portal.html') { window.addEventListener('pageshow', event => { if (event.persisted) location.reload(); }); }

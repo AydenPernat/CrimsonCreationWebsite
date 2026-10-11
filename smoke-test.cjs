@@ -4,6 +4,8 @@ const crypto = require('crypto');
 const { spawn } = require('child_process');
 const assert = require('assert/strict');
 
+const testTab = 'a'.repeat(64);
+const fetch = (url, options = {}) => global.fetch(url, { ...options, headers: { 'X-Crimson-Tab': testTab, ...(options.headers || {}) } });
 const testDir = fs.mkdtempSync(path.join(__dirname, '.smoke-'));
 const port = 3200 + Math.floor(Math.random() * 1000);
 const ownerEmail = 'owner@test.invalid';
@@ -19,12 +21,13 @@ const data = {
     sessions: [{ accountId: 'subscriber', tokenHash: crypto.createHash('sha256').update('subscriber-session').digest('hex'), expiresAt: Date.now() + 60000 }, { accountId: 'owner', tokenHash: crypto.createHash('sha256').update(sessionToken).digest('hex'), expiresAt: Date.now() + 60000 }]
 };
 for (const file of fs.readdirSync(__dirname)) {
-    if (['server.js', 'data-store.cjs', 'account-tools.cjs', 'social-auth.cjs', 'sitemap.xml'].includes(file) || file.endsWith('.html') || ['style.css', 'script.js', 'success.js', 'portal-tools.js', 'enhancements.js'].includes(file)) {
+    if (['server.js', 'data-store.cjs', 'account-tools.cjs', 'social-auth.cjs', 'sitemap.xml'].includes(file) || file.endsWith('.html') || ['style.css', 'script.js', 'success.js', 'portal-tools.js', 'enhancements.js', 'logo-upload.js'].includes(file)) {
         fs.copyFileSync(path.join(__dirname, file), path.join(testDir, file));
     }
 }
 fs.mkdirSync(path.join(testDir, 'img'));
 fs.copyFileSync(path.join(__dirname, 'img', 'crimson-logo.jpg'), path.join(testDir, 'img', 'crimson-logo.jpg'));
+for (const session of data.sessions) session.tabHash = crypto.createHash('sha256').update(testTab).digest('hex');
 data.accounts[0].oauthGoogleId = 'legacy-google-account';
 data.accounts[1].oauthGithubId = 'social-account';
 data.accounts[1].passwordSet = false;
@@ -79,15 +82,16 @@ const post = (route, body, cookie) => fetch(base + route, {
     const freshCookie = signin.headers.get('set-cookie').split(';')[0];
     assert.equal((await fetch(base+'/api/auth/me',{headers:{Cookie:freshCookie}})).status,200);
     await fetch(base+'/portal',{headers:{Cookie:freshCookie}});
-    assert.equal((await (await fetch(base+'/api/auth/me',{headers:{Cookie:freshCookie}})).json()).account,null);
-    const entryData = JSON.parse(fs.readFileSync(path.join(testDir,'data.json')));
-    entryData.sessions.push({accountId:'owner',tokenHash:crypto.createHash('sha256').update('oauth-entry-test').digest('hex'),expiresAt:Date.now()+60000,allowPortalEntry:true});
-    fs.writeFileSync(path.join(testDir,'data.json'),JSON.stringify(entryData));
-    const entryHeaders = {Cookie:'crimson_session=oauth-entry-test'};
-    await fetch(base+'/portal',{headers:entryHeaders});
-    assert.equal((await (await fetch(base+'/api/auth/me',{headers:entryHeaders})).json()).account.email,ownerEmail);
-    await fetch(base+'/portal',{headers:entryHeaders});
-    assert.equal((await (await fetch(base+'/api/auth/me',{headers:entryHeaders})).json()).account,null);
+    assert.equal((await (await fetch(base+'/api/auth/me',{headers:{Cookie:freshCookie}})).json()).account.email,ownerEmail,'Refreshing portal preserves this tab session');
+    const otherTab = 'b'.repeat(64);
+    assert.equal((await (await fetch(base+'/api/auth/me',{headers:{Cookie:freshCookie,'X-Crimson-Tab':otherTab}})).json()).account,null,'New tabs do not inherit the browser cookie session');
+    const otherSignin = await fetch(base+'/api/auth/signin',{method:'POST',headers:{Cookie:freshCookie,'X-Crimson-Tab':otherTab,'Content-Type':'application/json'},body:JSON.stringify({email:ownerEmail,password:'test-password'})});
+    assert.equal(otherSignin.status,200);
+    assert.equal(otherSignin.headers.get('set-cookie').split(';')[0],freshCookie,'Signing in another tab keeps the browser cookie stable');
+    assert.equal((await (await fetch(base+'/api/auth/me',{headers:{Cookie:freshCookie}})).json()).account.email,ownerEmail,'Signing in a new tab does not sign out the original tab');
+    assert.equal((await (await fetch(base+'/api/auth/me',{headers:{Cookie:freshCookie,'X-Crimson-Tab':otherTab}})).json()).account.email,ownerEmail);
+    await fetch(base+'/api/auth/signout',{method:'POST',headers:{Cookie:freshCookie}});
+    assert.equal((await (await fetch(base+'/api/auth/me',{headers:{Cookie:freshCookie}})).json()).account,null,'Sign-out invalidates the session');
 
     const signup = email => post('/api/auth/signup', { firstName: 'New', lastName: 'User', email, password: 'test-password' });
     const anonymousContact = await fetch(base + '/api/contact', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -154,7 +158,7 @@ const post = (route, body, cookie) => fetch(base + route, {
     for (const privatePath of ['/data.json', '/DATA.JSON', '/server.js', '/smoke-test.cjs', '/admins.html', '/admin.js']) {
         assert.equal((await fetch(base + privatePath)).status, 404, privatePath);
     }
-    for (const publicPath of ['/services', '/style.css', '/script.js', '/enhancements.js', '/sitemap.xml', '/robots.txt', '/api/auth/providers', '/img/crimson-logo.jpg']) {
+    for (const publicPath of ['/services', '/style.css', '/script.js', '/enhancements.js', '/logo-upload.js', '/vendor/pako.min.js', '/vendor/utif.js', '/vendor/heic-to.js', '/vendor/heic-to.LICENSE', '/sitemap.xml', '/robots.txt', '/api/auth/providers', '/img/crimson-logo.jpg']) {
         assert.equal((await fetch(base + publicPath)).status, 200, publicPath);
     }
     const sitemap = await (await fetch(base + '/sitemap.xml')).text();
@@ -247,6 +251,8 @@ const post = (route, body, cookie) => fetch(base + route, {
     const edited = readStored();
     edited.projects = [];
     edited.accounts.find(item => item.id === 'owner').passwordHash = crypto.scryptSync('changed-owner-password', 'a'.repeat(32), 64).toString('hex');
+    const subscriber = edited.accounts.find(item => item.id === 'subscriber');
+    subscriber.oauthGithubId = 'new-linked-github'; subscriber.oauthGithubEmail = 'linked@example.invalid'; subscriber.passwordSet = true;
     saveStored(edited);
     backupCredentials.password = 'changed-owner-password';
     assert.equal((await post('/api/backups/restore', { ...backupCredentials, backup }, sessionToken)).status, 400);
@@ -254,6 +260,10 @@ const post = (route, body, cookie) => fetch(base + route, {
     assert.equal((await post('/api/backups/restore', { ...backupCredentials, backup, confirmation: 'RESTORE' }, sessionToken)).status, 200);
     assert.equal(readStored().projects.length, 1);
     assert.deepEqual(readStored().sessions, []);
+    const restoredSubscriber = readStored().accounts.find(item => item.id === 'subscriber');
+    assert.equal(restoredSubscriber.oauthGithubId, 'new-linked-github');
+    assert.equal(restoredSubscriber.oauthGithubEmail, 'linked@example.invalid');
+    assert.equal(restoredSubscriber.passwordSet, true);
     assert.equal(readStored().accounts.find(item => item.id === 'owner').passwordHash, edited.accounts.find(item => item.id === 'owner').passwordHash, 'Restore must not revive old passwords');
     assert.equal((await post('/api/auth/signin', { email: ownerEmail, password: 'changed-owner-password' })).status, 200);
     let limited;

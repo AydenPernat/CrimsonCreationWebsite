@@ -181,6 +181,10 @@ function registerAccountTools({ api, readData, writeData, requireAccount, normal
                 account.passwordHash = existing.passwordHash || existing.hash;
                 account.passwordSalt = existing.passwordSalt || existing.salt;
                 account.verifiedAt = existing.verifiedAt;
+                for (const key of ['passwordSet', 'oauthGoogleId', 'oauthGoogleEmail', 'oauthGithubId', 'oauthGithubEmail']) {
+                    if (Object.hasOwn(existing, key)) account[key] = existing[key];
+                    else delete account[key];
+                }
                 delete account.hash;
                 delete account.salt;
             }
