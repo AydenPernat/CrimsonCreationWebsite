@@ -162,6 +162,15 @@ const post = (route, body, cookie) => fetch(base + route, {
     for (const publicPath of ['/services', '/style.css', '/script.js', '/enhancements.js', '/logo-upload.js', '/vendor/pako.min.js', '/vendor/utif.js', '/vendor/heic-to.js', '/vendor/heic-to.LICENSE', '/sitemap.xml', '/robots.txt', '/api/auth/providers', '/img/crimson-logo.jpg']) {
         assert.equal((await fetch(base + publicPath)).status, 200, publicPath);
     }
+    const favicon = await fetch(base + '/img/Crimson-logo-dragon-noBG.png?v=dragon1');
+    assert.equal(favicon.status, 200);
+    assert.equal(favicon.headers.get('content-type'), 'image/png');
+    assert.match(favicon.headers.get('cache-control'), /max-age=31536000/);
+    assert.match(favicon.headers.get('cache-control'), /immutable/);
+    const fallbackIcon = await fetch(base + '/favicon.ico', { redirect: 'manual' });
+    assert.equal(fallbackIcon.status, 200, 'Fallback favicon loads without a redirect');
+    assert.equal(fallbackIcon.headers.get('content-type'), 'image/png');
+    assert.match(fallbackIcon.headers.get('cache-control'), /max-age=3600/);
     const robots = await (await fetch(base + '/robots.txt')).text();
     assert.ok(robots.includes('Disallow: /api/'));
     for (const page of ['services', 'projects', 'project', 'about', 'contact', 'portal', 'success', 'unsubscribe']) {

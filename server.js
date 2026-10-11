@@ -73,8 +73,14 @@ Object.entries(cleanPageRoutes).forEach(([cleanPath, fileName]) => {
 ['style.css', 'script.js', 'success.js', 'portal-tools.js', 'enhancements.js', 'logo-upload.js'].forEach(fileName => {
     app.get(`/${fileName}`, (_request, response) => response.sendFile(path.join(__dirname, fileName)));
 });
+// Keep the favicon cached across full-page navigation. Bump its HTML version when replacing the artwork.
+app.get(['/favicon.ico', '/img/Crimson-logo-dragon-noBG.png'], (request, response) => {
+    const versioned = request.query.v === 'dragon1';
+    response.sendFile(path.join(__dirname, 'img', 'Crimson-logo-dragon-noBG.png'), {
+        maxAge: versioned ? '1y' : '1h', immutable: versioned
+    });
+});
 app.use('/img', express.static(path.join(__dirname, 'img')));
-app.get('/favicon.ico', (_request, response) => response.redirect(302, '/img/Crimson-logo-dragon-noBG.png'));
 const imageVendors = {
     'pako.min.js': path.join(path.dirname(require.resolve('pako/package.json')), 'dist/pako.min.js'),
     'utif.js': require.resolve('utif'),
