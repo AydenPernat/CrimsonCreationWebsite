@@ -42,15 +42,15 @@
                     <p class="eyebrow">Client sign in</p>
                     <h2 class="section-title" style="font-size: 2rem;">Welcome back.</h2>
                     <p>Open your workspace with Google, GitHub, or your password.</p>
-                    <div class="social-signin" data-social-signin><button class="btn btn-secondary" type="button" data-oauth="google" disabled><i class="fa-brands fa-google" aria-hidden="true"></i> Continue with Google</button><button class="btn btn-secondary" type="button" data-oauth="github" disabled><i class="fa-brands fa-github" aria-hidden="true"></i> Continue with GitHub</button><p class="portal-status" data-provider-status role="status"></p></div><form class="portal-form" id="portal-form">
+                    <div class="social-signin" data-social-signin><button class="btn btn-secondary" type="button" data-oauth="google" disabled><i class="fa-brands fa-google" aria-hidden="true"></i> Continue with Google</button><button class="btn btn-secondary" type="button" data-oauth="github" disabled><i class="fa-brands fa-github" aria-hidden="true"></i> Continue with GitHub</button><p class="portal-status" data-provider-status role="status"></p></div><form class="portal-form" id="portal-form" autocomplete="off">
                         <div class="field">
                             <label for="portal-email">Email</label>
-                            <input id="portal-email" type="email" placeholder="you@example.com" required>
+                            <input id="portal-email" type="email" placeholder="you@example.com" autocomplete="off" readonly required>
                         </div>
                         <div class="field">
                             <label for="portal-password">Password</label>
                             <div class="password-field">
-                                <input id="portal-password" type="password" placeholder="Your password" autocomplete="current-password" required>
+                                <input id="portal-password" type="password" placeholder="Your password" autocomplete="new-password" readonly required>
                                 <button class="password-toggle" type="button" aria-controls="portal-password" aria-label="Show password">
                                     <i class="fa-solid fa-eye" aria-hidden="true"></i>
                                 </button>
@@ -450,7 +450,7 @@
         </div>
     </footer>
 <script src="script.js?v=44"></script>
-<script src="enhancements.js?v=4" defer></script>
+<script src="enhancements.js?v=5" defer></script>
     <script src="portal-tools.js?v=1"></script>
 </body>
 

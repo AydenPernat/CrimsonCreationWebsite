@@ -145,3 +145,14 @@ if (location.pathname === '/portal' || location.pathname === '/portal.html') { w
     document.getElementById('remove-project-logo')?.addEventListener('click', resetLogo);
     document.getElementById('admin-project-form')?.addEventListener('reset', resetLogo);
 })();
+
+(() => {
+    const fields = ['portal-email', 'portal-password'].map(id => document.getElementById(id)).filter(Boolean);
+    for (const field of fields) {
+        field.value = '';
+        field.addEventListener('focus', () => { field.readOnly = false; });
+    }
+    window.addEventListener('pageshow', () => { for (const field of fields) field.value = ''; });
+})();
+
+document.getElementById('portal-signout')?.addEventListener('click', () => { for (const id of ['portal-email','portal-password']) { const field = document.getElementById(id); if (field) { field.value = ''; field.readOnly = true; } } });

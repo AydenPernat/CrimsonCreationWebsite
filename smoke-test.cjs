@@ -25,6 +25,9 @@ for (const file of fs.readdirSync(__dirname)) {
 }
 fs.mkdirSync(path.join(testDir, 'img'));
 fs.copyFileSync(path.join(__dirname, 'img', 'crimson-logo.jpg'), path.join(testDir, 'img', 'crimson-logo.jpg'));
+data.accounts[0].oauthGoogleId = 'legacy-google-account';
+data.accounts[1].oauthGithubId = 'social-account';
+data.accounts[1].passwordSet = false;
 fs.writeFileSync(path.join(testDir, 'data.json'), JSON.stringify(data));
 fs.writeFileSync(path.join(testDir, 'mock.cjs'), `
 const fs = require('fs');
@@ -56,6 +59,10 @@ const post = (route, body, cookie) => fetch(base + route, {
         child.once('error', reject);
         child.once('exit', code => reject(new Error(`Server exited ${code}: ${errors}`)));
     });
+    const legacyProfile = await (await fetch(base+'/api/auth/me',{headers:{Cookie:'crimson_session='+sessionToken}})).json();
+    assert.equal(legacyProfile.account.needsPassword,false,'Existing password accounts linked to Google should not see password setup');
+    const socialProfile = await (await fetch(base+'/api/auth/me',{headers:{Cookie:'crimson_session=subscriber-session'}})).json();
+    assert.equal(socialProfile.account.needsPassword,true,'Accounts created without a portal password should see password setup');
     const projectPayload = {name:'Logo test', description:'Logo validation', ownerEmail, projectType:'website', logo:'data:image/png;base64,aGVsbG8='};
     let projectResponse = await post('/api/projects', projectPayload, sessionToken);
     assert.equal(projectResponse.status, 201);
@@ -67,7 +74,7 @@ const post = (route, body, cookie) => fetch(base + route, {
     assert.equal(signin.status,200);
     assert.ok(!signin.headers.get('set-cookie').includes('Max-Age'));
     const ownerProfile = (await signin.json()).account;
-    assert.deepEqual(ownerProfile.connectedProviders,{google:false,github:false});
+    assert.deepEqual(ownerProfile.connectedProviders,{google:true,github:false});
     assert.equal(ownerProfile.needsPassword,false);
     const freshCookie = signin.headers.get('set-cookie').split(';')[0];
     assert.equal((await fetch(base+'/api/auth/me',{headers:{Cookie:freshCookie}})).status,200);
