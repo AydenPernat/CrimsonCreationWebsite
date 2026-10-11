@@ -74,6 +74,7 @@ Object.entries(cleanPageRoutes).forEach(([cleanPath, fileName]) => {
     app.get(`/${fileName}`, (_request, response) => response.sendFile(path.join(__dirname, fileName)));
 });
 app.use('/img', express.static(path.join(__dirname, 'img')));
+app.get('/favicon.ico', (_request, response) => response.redirect(302, '/img/crimson-logo.jpg'));
 const imageVendors = {
     'pako.min.js': path.join(path.dirname(require.resolve('pako/package.json')), 'dist/pako.min.js'),
     'utif.js': require.resolve('utif'),
