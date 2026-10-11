@@ -27,6 +27,7 @@ for (const file of fs.readdirSync(__dirname)) {
 }
 fs.mkdirSync(path.join(testDir, 'img'));
 fs.copyFileSync(path.join(__dirname, 'img', 'crimson-logo.jpg'), path.join(testDir, 'img', 'crimson-logo.jpg'));
+fs.copyFileSync(path.join(__dirname, 'img', 'Crimson-logo-dragon-noBG.png'), path.join(testDir, 'img', 'Crimson-logo-dragon-noBG.png'));
 for (const session of data.sessions) session.tabHash = crypto.createHash('sha256').update(testTab).digest('hex');
 data.accounts[0].oauthGoogleId = 'legacy-google-account';
 data.accounts[1].oauthGithubId = 'social-account';
