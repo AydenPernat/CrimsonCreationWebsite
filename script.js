@@ -485,7 +485,12 @@ function showPortalPreview() {
         const linked = Boolean(providers[button.dataset.oauth]);
         button.dataset.connected = String(linked);
         button.disabled = linked || button.dataset.providerAvailable !== 'true';
-        button.textContent = (linked ? '' : 'Continue with ') + (button.dataset.oauth === 'google' ? 'Google' : 'GitHub') + (linked ? ' connected ✓' : '');
+        const providerName = button.dataset.oauth === 'google' ? 'Google' : 'GitHub';
+        const icon = document.createElement('i');
+        icon.className = linked ? 'fa-solid fa-check' : `fa-brands fa-${button.dataset.oauth}`;
+        icon.setAttribute('aria-hidden', 'true');
+        button.replaceChildren(icon, document.createTextNode(` ${linked ? providerName + ' connected' : 'Continue with ' + providerName}`));
+        button.title = linked ? `${providerName} is connected to your account` : '';
     });
     if (portalPreview) portalPreview.hidden = false;
     if (portalSigninCard) portalSigninCard.hidden = true;

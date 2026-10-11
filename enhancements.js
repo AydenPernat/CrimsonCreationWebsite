@@ -62,7 +62,7 @@
                 const enabled = providers[button.dataset.oauth] === true;
                 button.dataset.providerAvailable = String(enabled);
                 button.disabled = !enabled || button.dataset.connected === 'true';
-                if (!enabled) button.title = 'Provider setup is pending. Use your password.';
+                if (!enabled && button.dataset.connected !== 'true') button.title = 'Provider setup is pending. Use your password.';
                 button.addEventListener('click', () => {
                     const next = params.get('next') === 'contact' ? '?next=contact' : '';
                     location.assign(`/api/auth/oauth/${button.dataset.oauth}${next}`);
