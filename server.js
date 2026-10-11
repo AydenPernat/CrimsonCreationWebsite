@@ -28,8 +28,8 @@ app.use('/api/backups', express.json({ limit: '13mb' }));
 app.use(express.json({ limit: '100kb' }));
 app.set('trust proxy', 1);
 app.use((_request, response, next) => {
-    // Crawlers must be able to read noindex on utility pages, including aliases.
-    if (/^\/(portal|success|unsubscribe)(\.html)?\/?$/i.test(_request.path)) {
+    // Only the homepage is eligible for search; crawlers can read noindex on other pages.
+    if (/^\/(services|projects|project|about|contact|portal|success|unsubscribe)(\.html)?\/?$/i.test(_request.path)) {
         response.setHeader('X-Robots-Tag', 'noindex, nofollow');
     }
     response.setHeader('X-Content-Type-Options', 'nosniff');
@@ -90,12 +90,11 @@ app.get('/robots.txt', (_request, response) => {
     const origin = new URL(process.env.CRIMSON_PUBLIC_URL || 'https://www.crimsoncreations.dev').origin;
     response.type('text/plain').send(`User-agent: *\nAllow: /\nDisallow: /api/\nSitemap: ${origin}/sitemap.xml\n`);
 });
-api('get', '/sitemap.xml', (_request, response) => {
+app.get('/sitemap.xml', (_request, response) => {
     const origin = new URL(process.env.CRIMSON_PUBLIC_URL || 'https://www.crimsoncreations.dev').origin;
     const template = fs.readFileSync(path.join(__dirname, 'sitemap.xml'), 'utf8').replaceAll('https://www.crimsoncreations.dev', escapeHtml(origin));
-    const projects = readData().projects.map(project => `<url><loc>${escapeHtml(`${origin}/project?projectId=${encodeURIComponent(project.id)}`)}</loc></url>`).join('\n');
     response.setHeader('Content-Type', 'application/xml; charset=utf-8');
-    response.send(template.replace('</urlset>', `${projects}\n</urlset>`));
+    response.send(template);
 });
 
 function normalizeEmail(email) { return String(email || '').trim().toLowerCase(); }

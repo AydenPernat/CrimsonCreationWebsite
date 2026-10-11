@@ -163,17 +163,22 @@ const post = (route, body, cookie) => fetch(base + route, {
     }
     const robots = await (await fetch(base + '/robots.txt')).text();
     assert.ok(robots.includes('Disallow: /api/'));
-    for (const page of ['portal', 'success', 'unsubscribe']) {
+    for (const page of ['services', 'projects', 'project', 'about', 'contact', 'portal', 'success', 'unsubscribe']) {
         assert.ok(!robots.includes(`Disallow: /${page}`), 'Google must be able to crawl utility pages to read noindex');
         for (const alias of [`/${page}`, `/${page}.html`, `/${page}?source=google`]) {
             const result = await fetch(base + alias, { redirect: 'manual' });
             assert.equal(result.headers.get('x-robots-tag'), 'noindex, nofollow', alias);
+            if (!alias.endsWith('.html')) {
+                assert.equal(result.status, 200, 'Hidden from search pages still work');
+                assert.match(await result.text(), /<meta name="robots" content="noindex, nofollow">/);
+            }
         }
     }
     assert.equal((await fetch(base + '/')).headers.get('x-robots-tag'), null, 'Homepage stays indexable');
     const sitemap = await (await fetch(base + '/sitemap.xml')).text();
-    for (const route of ['/', '/services', '/projects', '/about', '/contact']) assert.ok(sitemap.includes(`<loc>${base}${route}</loc>`));
-    assert.ok(!sitemap.includes('/portal'));
+    assert.ok(sitemap.includes(`<loc>${base}/</loc>`));
+    assert.equal((sitemap.match(/<loc>/g) || []).length, 1, 'Sitemap lists only the homepage');
+    assert.ok(!sitemap.includes('/project'), 'Saved projects stay out of the sitemap');
     const homepage = await (await fetch(base + '/')).text();
     const schema = JSON.parse(homepage.match(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/)[1]);
     assert.equal(schema['@type'], 'ProfessionalService');
