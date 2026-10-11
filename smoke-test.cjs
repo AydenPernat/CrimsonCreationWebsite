@@ -56,6 +56,32 @@ const post = (route, body, cookie) => fetch(base + route, {
         child.once('error', reject);
         child.once('exit', code => reject(new Error(`Server exited ${code}: ${errors}`)));
     });
+    const projectPayload = {name:'Logo test', description:'Logo validation', ownerEmail, projectType:'website', logo:'data:image/png;base64,aGVsbG8='};
+    let projectResponse = await post('/api/projects', projectPayload, sessionToken);
+    assert.equal(projectResponse.status, 201);
+    const logoProject = (await projectResponse.json()).project;
+    assert.equal(logoProject.logo, projectPayload.logo);
+    assert.equal((await post('/api/projects', {...projectPayload, logo:'javascript:alert(1)'}, sessionToken)).status,400);
+    await fetch(base + '/api/projects/' + logoProject.id, {method:'DELETE',headers:{Cookie:'crimson_session='+sessionToken}});
+    const signin = await post('/api/auth/signin', {email: ownerEmail, password:'test-password'});
+    assert.equal(signin.status,200);
+    assert.ok(!signin.headers.get('set-cookie').includes('Max-Age'));
+    const ownerProfile = (await signin.json()).account;
+    assert.deepEqual(ownerProfile.connectedProviders,{google:false,github:false});
+    assert.equal(ownerProfile.needsPassword,false);
+    const freshCookie = signin.headers.get('set-cookie').split(';')[0];
+    assert.equal((await fetch(base+'/api/auth/me',{headers:{Cookie:freshCookie}})).status,200);
+    await fetch(base+'/portal',{headers:{Cookie:freshCookie}});
+    assert.equal((await (await fetch(base+'/api/auth/me',{headers:{Cookie:freshCookie}})).json()).account,null);
+    const entryData = JSON.parse(fs.readFileSync(path.join(testDir,'data.json')));
+    entryData.sessions.push({accountId:'owner',tokenHash:crypto.createHash('sha256').update('oauth-entry-test').digest('hex'),expiresAt:Date.now()+60000,allowPortalEntry:true});
+    fs.writeFileSync(path.join(testDir,'data.json'),JSON.stringify(entryData));
+    const entryHeaders = {Cookie:'crimson_session=oauth-entry-test'};
+    await fetch(base+'/portal',{headers:entryHeaders});
+    assert.equal((await (await fetch(base+'/api/auth/me',{headers:entryHeaders})).json()).account.email,ownerEmail);
+    await fetch(base+'/portal',{headers:entryHeaders});
+    assert.equal((await (await fetch(base+'/api/auth/me',{headers:entryHeaders})).json()).account,null);
+
     const signup = email => post('/api/auth/signup', { firstName: 'New', lastName: 'User', email, password: 'test-password' });
     const anonymousContact = await fetch(base + '/api/contact', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body: new URLSearchParams({ name: 'Test', business: 'Test', email: 'contact@test.invalid', details: 'Test request' }) });

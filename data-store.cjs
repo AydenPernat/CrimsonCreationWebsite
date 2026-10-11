@@ -83,7 +83,7 @@ function registerApi(app, store, method, route, handler) {
     app[method](route, async (request, response) => {
         const actions = [];
         const reply = {};
-        for (const name of ['status', 'setHeader', 'json', 'send', 'redirect']) {
+        for (const name of ['status', 'setHeader', 'json', 'send', 'sendFile', 'redirect']) {
             reply[name] = (...args) => { actions.push([name, args]); return reply; };
         }
         try {

@@ -476,6 +476,17 @@ let passwordResetRequested = new URLSearchParams(window.location.hash.slice(1)).
 function showPortalPreview() {
     const account = getAccount() || { firstName: 'Client', lastName: '', email: 'Not connected' };
     const fullName = `${account.firstName || ''} ${account.lastName || ''}`.trim() || 'Client';
+    const providers = account.connectedProviders || {};
+    const connected = document.getElementById('connected-providers');
+    if (connected) connected.textContent = ['google', 'github'].filter(key => providers[key]).map(key => (key === 'google' ? 'Google' : 'GitHub') + ' connected ✓').join(' · ');
+    const notice = document.getElementById('password-setup-notice');
+    if (notice) notice.hidden = !account.needsPassword;
+    document.querySelectorAll('#portal-preview [data-oauth]').forEach(button => {
+        const linked = Boolean(providers[button.dataset.oauth]);
+        button.dataset.connected = String(linked);
+        button.disabled = linked || button.dataset.providerAvailable !== 'true';
+        button.textContent = (linked ? '' : 'Continue with ') + (button.dataset.oauth === 'google' ? 'Google' : 'GitHub') + (linked ? ' connected ✓' : '');
+    });
     if (portalPreview) portalPreview.hidden = false;
     if (portalSigninCard) portalSigninCard.hidden = true;
     if (portalSignupPanel) portalSignupPanel.hidden = true;
@@ -965,6 +976,13 @@ function renderAdminProjects() {
         card.dataset.projectId = project.id;
         card.dataset.search = `${project.name} ${project.description} ${project.tags || ''}`.toLowerCase();
 
+        const badge = card.querySelector('.icon-badge');
+        if (badge && project.logo && (/^https:\/\//.test(project.logo) || /^data:image\/(png|jpeg|webp);base64,/.test(project.logo))) {
+            const image = document.createElement('img'); image.src = project.logo; image.alt = ''; image.loading = 'lazy';
+            const fallback = badge.cloneNode(true);
+            image.addEventListener('error', () => badge.replaceChildren(...fallback.childNodes), { once: true });
+            badge.replaceChildren(image);
+        }
         card.querySelector('[data-project-name]').textContent = project.name;
         card.querySelector('[data-project-description]').textContent = project.description;
         const typeLabel = project.projectType === 'game' ? 'Game' : 'Website';
@@ -1183,6 +1201,11 @@ function loadAdminProject(projectIndex) {
 
     document.getElementById('admin-project-name').value = project.name || '';
     document.getElementById('admin-project-description').value = project.description || '';
+    const logoField = document.getElementById('admin-project-logo');
+    logoField.value = project.logo?.startsWith('data:') ? '' : (project.logo || '');
+    logoField.dataset.upload = project.logo?.startsWith('data:') ? project.logo : '';
+    document.getElementById('project-logo-status').textContent = project.logo ? 'A logo is saved for this project. Upload a replacement or remove it below.' : 'Leave empty to keep the droplet.';
+    document.getElementById('admin-project-logo-file').value = '';
     document.getElementById('admin-project-tags').value = project.tags || whatBuilt.tags || '';
     document.getElementById('admin-project-link').value = project.link || '';
     document.getElementById('admin-project-owner-email').value = project.ownerEmail || '';
@@ -1224,6 +1247,7 @@ if (adminProjectForm) {
         const project = {
             name: document.getElementById('admin-project-name')?.value.trim(),
             description: document.getElementById('admin-project-description')?.value.trim(),
+            logo: document.getElementById('admin-project-logo')?.dataset.upload || document.getElementById('admin-project-logo')?.value.trim(),
             tags: document.getElementById('admin-project-tags')?.value.trim(),
             link: document.getElementById('admin-project-link')?.value.trim(),
             ownerEmail: normalizeEmail(document.getElementById('admin-project-owner-email')?.value),

@@ -53,7 +53,23 @@ app.get('/index.html', (request, response) => {
     response.redirect(301, suffix ? `/${suffix}` : '/');
 });
 Object.entries(cleanPageRoutes).forEach(([cleanPath, fileName]) => {
+    if (cleanPath === '/portal') return;
     app.get(cleanPath, (_request, response) => response.sendFile(path.join(__dirname, fileName)));
+});
+api('get', '/portal', (request, response) => {
+    response.setHeader('Cache-Control', 'no-store');
+    const token = request.headers.cookie?.match(/(?:^|;\s*)crimson_session=([^;]+)/)?.[1];
+    if (token) {
+        const data = readData();
+        const session = data.sessions?.find(item => item.tokenHash === hashToken(token));
+        if (session?.allowPortalEntry && session.expiresAt > Date.now()) session.allowPortalEntry = false;
+        else {
+            data.sessions = (data.sessions || []).filter(item => item.tokenHash !== hashToken(token));
+            response.setHeader('Set-Cookie', `crimson_session=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0${secureCookie}`);
+        }
+        writeData(data);
+    }
+    response.sendFile(path.join(__dirname, 'portal.html'));
 });
 app.get('/home', (_request, response) => response.redirect('/'));
 app.get('/home.html', (_request, response) => response.redirect(301, '/'));
@@ -170,7 +186,9 @@ function publicAccount(account) {
     const email = normalizeEmail(account.email);
     const isOwner = configuredAdminEmails.includes(email);
     const isAdmin = isOwner || readData().admins.some(admin => admin.accountId === account.id);
-    return { firstName: account.firstName, lastName: account.lastName, email, role: isOwner ? 'owner' : isAdmin ? 'admin' : 'client', newsletterOptIn: account.newsletterOptIn === true };
+    return { firstName: account.firstName, lastName: account.lastName, email, role: isOwner ? 'owner' : isAdmin ? 'admin' : 'client', newsletterOptIn: account.newsletterOptIn === true,
+        connectedProviders: { google: Boolean(account.oauthGoogleId), github: Boolean(account.oauthGithubId) },
+        needsPassword: account.passwordSet === false || (account.passwordSet === undefined && Boolean(account.oauthGoogleId || account.oauthGithubId)) };
 }
 
 function deleteAccountData(data, accountId) {
@@ -205,11 +223,11 @@ function currentAccount(request) {
     return session ? data.accounts.find(account => account.id === session.accountId) : null;
 }
 
-function createSession(account) {
+function createSession(account, { allowPortalEntry = false } = {}) {
     const token = crypto.randomBytes(32).toString('hex');
     const data = readData();
     data.sessions = (data.sessions || []).filter(session => session.expiresAt > Date.now());
-    data.sessions.push({ accountId: account.id, tokenHash: hashToken(token), expiresAt: Date.now() + 7 * 24 * 60 * 60 * 1000 });
+    data.sessions.push({ accountId: account.id, tokenHash: hashToken(token), allowPortalEntry, expiresAt: Date.now() + 7 * 24 * 60 * 60 * 1000 });
     writeData(data);
     return token;
 }
@@ -242,7 +260,7 @@ api('post', '/api/auth/signup', async (request, response) => {
     if (!firstName || !lastName || !normalizedEmail || typeof password !== 'string' || password.length < 8) return response.status(400).json({ error: 'Use a name, valid email, and password with at least 8 characters.' });
     if (readData().accounts.some(account => normalizeEmail(account.email) === normalizedEmail)) return response.status(409).json({ error: 'That email already has an account.' });
     const verificationToken = crypto.randomBytes(32).toString('hex');
-    const account = { id: crypto.randomBytes(12).toString('hex'), firstName: String(firstName).trim(), lastName: String(lastName).trim(), email: normalizedEmail, newsletterOptIn: request.body?.newsletterOptIn === true, verifiedAt: null, verificationTokenHash: hashToken(verificationToken), verificationExpiresAt: Date.now() + 24 * 60 * 60 * 1000, ...hashPassword(password) };
+    const account = { id: crypto.randomBytes(12).toString('hex'), firstName: String(firstName).trim(), lastName: String(lastName).trim(), email: normalizedEmail, passwordSet: true, newsletterOptIn: request.body?.newsletterOptIn === true, verifiedAt: null, verificationTokenHash: hashToken(verificationToken), verificationExpiresAt: Date.now() + 24 * 60 * 60 * 1000, ...hashPassword(password) };
     let verificationResult;
     try { verificationResult = await sendVerificationEmail(normalizedEmail, verificationToken); } catch { verificationResult = { ok: false, error: 'The email service could not be reached.' }; }
     if (!verificationResult.ok) return response.status(503).json({ error: verificationResult.error });
@@ -263,8 +281,6 @@ api('get', '/api/auth/verify', (request, response) => {
     delete account.verificationExpiresAt;
     if (configuredAdminEmails.includes(normalizeEmail(account.email)) && !data.admins.some(admin => admin.accountId === account.id)) data.admins.push({ accountId: account.id, name: `${account.firstName} ${account.lastName}` });
     writeData(data);
-    const sessionToken = createSession(account);
-    response.setHeader('Set-Cookie', `crimson_session=${sessionToken}; HttpOnly; SameSite=Lax; Path=/; Max-Age=604800${secureCookie}`);
     response.redirect('/portal?verified=1');
 });
 
@@ -276,7 +292,7 @@ api('post', '/api/auth/signin', (request, response) => {
     if (typeof password !== 'string' || !passwordMatches(password, account)) return response.status(401).json({ error: 'The password is incorrect.' });
     if (!account.verifiedAt) return response.status(403).json({ error: 'Verify your email before signing in.' });
     const token = createSession(account);
-    response.setHeader('Set-Cookie', `crimson_session=${token}; HttpOnly; SameSite=Lax; Path=/; Max-Age=604800${secureCookie}`);
+    response.setHeader('Set-Cookie', `crimson_session=${token}; HttpOnly; SameSite=Lax; Path=/${secureCookie}`);
     response.json({ account: publicAccount(account) });
 });
 
@@ -382,9 +398,14 @@ function normalizeProjectPayload(input = {}) {
         solution: String(input.solution || '').trim().slice(0, 2000),
         impact: String(input.impact || '').trim().slice(0, 2000),
         tools: String(input.tools || '').trim().slice(0, 500),
+        logo: String(input.logo || '').trim(),
         projectType
     };
     if (!project.name || !project.description || !project.ownerEmail || !projectType) return { error: 'Name, description, owner email, and project type are required.' };
+    if (project.logo && !(project.logo.length <= 60000 && /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/]+=*$/.test(project.logo))) {
+        try { if (project.logo.length > 2000 || new URL(project.logo).protocol !== 'https:') throw new Error(); }
+        catch { return { error: 'Choose a PNG, JPG, or WebP logo, or enter an HTTPS image URL.' }; }
+    }
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(project.ownerEmail)) return { error: 'Enter a valid project owner email.' };
     if (project.link) {
         try {

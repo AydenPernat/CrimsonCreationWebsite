@@ -67,3 +67,7 @@ A sitemap helps discovery; it does not guarantee instant indexing. Structured da
 ## Performance scores
 
 The performance card has been removed. A small score display is possible using the [PageSpeed Insights API](https://developers.google.com/speed/docs/insights/v5/get-started), rather than embedding the whole report. A reliable badge would use a real measured score, device/test date, and server-side refresh/cache. No unmeasured score is displayed.
+
+## Portal updates
+
+Project logos are optional: upload PNG/JPG/WebP (up to 5 MB, resized before saving) or use an HTTPS image URL. Empty logos retain the droplet. Accounts show connected providers. Social accounts can request an email link to set a separate portal password; provider passwords are never shared with the site. Password sign-in and OAuth use browser-session cookies instead of seven-day persistent cookies. Opening or refreshing the portal ends the previous sign-in. A freshly completed OAuth or magic-link sign-in may enter the dashboard once; returning requires a new sign-in. Verification emails now require an explicit sign-in afterwards. Existing persistent cookies are replaced at the next sign-in; sign out once to clear an old session.

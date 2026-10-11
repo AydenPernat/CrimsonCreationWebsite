@@ -130,6 +130,7 @@ function registerAccountTools({ api, readData, writeData, requireAccount, normal
         const account = data.accounts.find(item => item.verifiedAt && item.resetTokenHash === hashToken(token) && item.resetExpiresAt > Date.now());
         if (!account) return response.status(400).json({ error: 'This reset link is invalid or expired. Request a new one.' });
         Object.assign(account, hashPassword(password));
+        account.passwordSet = true;
         delete account.hash;
         delete account.salt;
         delete account.resetTokenHash;

@@ -7,7 +7,7 @@ function registerSocialAuth({ api, readData, writeData, currentAccount, createSe
         return { id: process.env[`${prefix}_CLIENT_ID`], secret: process.env[`${prefix}_CLIENT_SECRET`] };
     };
     const enabled = provider => ['google', 'github'].includes(provider) && Boolean(config(provider).id && config(provider).secret);
-    const cookie = token => `crimson_session=${token}; HttpOnly; SameSite=Lax; Path=/; Max-Age=604800${secureCookie}`;
+    const cookie = token => `crimson_session=${token}; HttpOnly; SameSite=Lax; Path=/${secureCookie}`;
     const flowCookie = value => `crimson_oauth=${value}; HttpOnly; SameSite=Lax; Path=/api/auth/oauth; Max-Age=${value ? 600 : 0}${secureCookie}`;
     const jsonFetch = async (url, options = {}) => {
         const result = await fetch(url, { ...options, signal: AbortSignal.timeout(15000) });
@@ -90,13 +90,13 @@ function registerSocialAuth({ api, readData, writeData, currentAccount, createSe
                 if (latest.accounts.some(item => normalizeEmail(item.email) === email)) return res.redirect('/portal?authError=existing');
                 const parts = name.trim().split(/\s+/);
                 account = { id: crypto.randomBytes(12).toString('hex'), email, firstName: parts.shift() || 'Client', lastName: parts.join(' '),
-                    newsletterOptIn: false, verifiedAt: new Date().toISOString(), ...hashPassword(crypto.randomBytes(48).toString('hex')) };
+                    newsletterOptIn: false, passwordSet: false, verifiedAt: new Date().toISOString(), ...hashPassword(crypto.randomBytes(48).toString('hex')) };
                 latest.accounts.push(account);
             }
             if (!account.verifiedAt) throw new Error('Unverified account');
             account[identityKey] = subject;
             writeData(latest);
-            res.setHeader('Set-Cookie', [flowCookie(''), cookie(createSession(account))]);
+            res.setHeader('Set-Cookie', [flowCookie(''), cookie(createSession(account, { allowPortalEntry: flow.next === '/portal' }))]);
             res.redirect(flow.next);
         } catch {
             res.redirect('/portal?authError=provider');
@@ -139,7 +139,7 @@ function registerSocialAuth({ api, readData, writeData, currentAccount, createSe
         if (!account || !/^[a-f0-9]{64}$/.test(token)) return res.status(400).json({ error: 'This sign-in link is invalid or expired. Request another link.' });
         delete account.magicTokenHash; delete account.magicExpiresAt;
         writeData(data);
-        res.setHeader('Set-Cookie', cookie(createSession(account)));
+        res.setHeader('Set-Cookie', cookie(createSession(account, { allowPortalEntry: true })));
         res.json({ ok: true });
     });
 }
