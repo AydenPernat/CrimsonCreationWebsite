@@ -93,11 +93,7 @@
             catch (error) { document.getElementById('magic-consume-status').textContent = error.message; button.disabled = false; }
         });
     }
-    document.querySelectorAll('[data-viewport]').forEach(button => button.addEventListener('click', () => {
-        const frame = document.getElementById('project-preview-frame');
-        if (frame) frame.style.width = `${button.dataset.viewport}px`;
-        document.querySelectorAll('[data-viewport]').forEach(other => other.setAttribute('aria-pressed', String(other === button)));
-    }));
+
 })();
 
 (() => {
@@ -137,3 +133,23 @@ if (location.pathname === '/portal' || location.pathname === '/portal.html') { w
 })();
 
 document.getElementById('portal-signout')?.addEventListener('click', () => { for (const id of ['portal-email','portal-password']) { const field = document.getElementById(id); if (field) { field.value = ''; field.readOnly = true; } } });
+
+(() => {
+    const status = document.getElementById('unlink-provider-status');
+    let pending = false;
+    document.querySelectorAll('[data-unlink-provider]').forEach(button => button.addEventListener('click', async () => {
+        if (pending) return;
+        const provider = button.dataset.unlinkProvider;
+        const name = provider === 'google' ? 'Google' : 'GitHub';
+        if (!await showSiteDialog({ title: `Unlink ${name}?`, message: `You will no longer be able to sign into this portal using the connected ${name} account. Your portal account and projects will stay here.`, confirmLabel: `Unlink ${name}` })) return;
+        pending = true;
+        document.querySelectorAll('[data-unlink-provider]').forEach(item => { item.disabled = true; });
+        status.textContent = `Unlinking ${name}…`;
+        try {
+            const result = await apiRequest(`/api/auth/oauth/${provider}`, { method: 'DELETE' });
+            await loadCurrentSession();
+            status.textContent = result.message;
+        } catch (error) { status.textContent = error.message; }
+        finally { pending = false; document.querySelectorAll('[data-unlink-provider]').forEach(item => { item.disabled = false; }); }
+    }));
+})();

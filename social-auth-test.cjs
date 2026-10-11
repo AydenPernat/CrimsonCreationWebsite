@@ -113,6 +113,25 @@ test('OAuth state, PKCE, verified identities, account linking and single-use mag
         data.accounts[0].magicExpiresAt = Date.now() + 60000;
         assert.equal((await run('post', '/api/auth/magic-link/consume', { body: { token } })).statusCode, 200);
         assert.equal((await run('post', '/api/auth/magic-link/consume', { body: { token } })).statusCode, 400);
+        const unlink = provider => run('delete', '/api/auth/oauth/:provider', { params: { provider } });
+        viewer = null;
+        assert.equal((await unlink('google')).statusCode, 401);
+        viewer = data.accounts[0];
+        assert.equal((await unlink('unknown')).statusCode, 400);
+        data.oauthFlows.push({ accountId: viewer.id, provider: 'google', expiresAt: Date.now() + 60000 });
+        const firstAccountId = viewer.id;
+        assert.equal((await unlink('google')).statusCode, 200);
+        assert.equal(data.accounts[0].oauthGoogleId, undefined);
+        assert.equal(data.accounts[0].oauthGoogleEmail, undefined);
+        assert.equal(data.oauthFlows.some(flow => flow.accountId === firstAccountId && flow.provider === 'google'), false);
+        assert.equal(data.accounts[1].oauthGoogleId, 'google-git-client', 'Other accounts keep their provider links');
+        assert.equal((await unlink('github')).statusCode, 409, 'Cannot remove the final usable sign-in method');
+        assert.equal(data.accounts[0].oauthGithubId, '42');
+        data.accounts[0].passwordSet = true;
+        assert.equal((await unlink('github')).statusCode, 200, 'A portal password allows unlinking the final provider');
+        assert.equal(data.accounts[0].oauthGithubEmail, undefined);
+        assert.equal(data.accounts[0].email, 'client@icloud.invalid');
+        assert.equal(data.accounts.length, 2);
         delete process.env.GOOGLE_CLIENT_ID;
         assert.equal((await run('get', '/api/auth/oauth/:provider', { params: { provider: 'google' } })).statusCode, 503);
     } finally {

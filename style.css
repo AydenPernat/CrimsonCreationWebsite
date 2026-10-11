@@ -3080,3 +3080,5 @@ input:autofill { background: #161010; color: #f6f1ef; }
 #admin-project-logo-file:focus-visible { outline: 2px solid var(--red-2); outline-offset: 3px; }
 #portal-preview [data-oauth][data-connected="true"] { opacity: 1; background: rgba(51,180,111,.12); border-color: rgba(51,180,111,.4); color: #94e9b4; cursor: default; }
 @media (max-width: 480px) { #admin-project-logo-file::file-selector-button { padding: 10px 12px; margin-right: 8px; } }
+
+[data-unlink-provider][hidden] { display: none; }

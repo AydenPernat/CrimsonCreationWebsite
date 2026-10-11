@@ -504,6 +504,7 @@ function showPortalPreview() {
         const email = account.providerEmails?.[key];
         return (key === 'google' ? 'Google' : 'GitHub') + ' connected ✓' + (email ? ` (${email})` : '');
     }).join(' · ');
+    document.querySelectorAll('[data-unlink-provider]').forEach(button => { button.hidden = !providers[button.dataset.unlinkProvider]; });
     const notice = document.getElementById('password-setup-notice');
     if (notice) notice.hidden = !account.needsPassword;
     document.querySelectorAll('#portal-preview [data-oauth]').forEach(button => {
@@ -1822,17 +1823,6 @@ if (projectDetail) {
             document.querySelector('[data-case-solution]').textContent = project.solution || project.buildDescription || project.description;
             document.querySelector('[data-case-impact]').textContent = project.impact || 'Measured results have not been published for this project yet.';
             document.querySelector('[data-case-tools]').textContent = project.tools ? `Tools: ${project.tools}` : '';
-        }
-        const preview = document.getElementById('project-preview');
-        const frame = document.getElementById('project-preview-frame');
-        if (preview && frame && project.link) {
-            try {
-                const previewURL = new URL(project.link);
-                if (['http:', 'https:'].includes(previewURL.protocol) && previewURL.origin !== location.origin && (location.protocol !== 'https:' || previewURL.protocol === 'https:')) {
-                    frame.src = previewURL.href;
-                    preview.hidden = false;
-                }
-            } catch { /* Invalid URLs never reach the frame. */ }
         }
         document.querySelector('[data-detail-tags]').hidden = false;
         if (detailStatus) detailStatus.hidden = true;

@@ -18,6 +18,28 @@ function registerSocialAuth({ api, readData, writeData, currentAccount, createSe
         res.setHeader('Cache-Control', 'no-store');
         res.json({ google: enabled('google'), github: enabled('github'), magic: Boolean(process.env.RESEND_API_KEY && process.env.RESEND_FROM_EMAIL) });
     });
+    api('delete', '/api/auth/oauth/:provider', (req, res) => {
+        res.setHeader('Cache-Control', 'no-store');
+        const provider = req.params.provider;
+        if (!['google', 'github'].includes(provider)) return res.status(400).json({ error: 'Unknown sign-in provider.' });
+        const signedIn = currentAccount(req);
+        if (!signedIn) return res.status(401).json({ error: 'Sign in before unlinking an account.' });
+        const data = readData();
+        const account = data.accounts.find(item => item.id === signedIn.id);
+        if (!account) return res.status(401).json({ error: 'Sign in again to continue.' });
+        const identityKey = provider === 'google' ? 'oauthGoogleId' : 'oauthGithubId';
+        const otherProvider = provider === 'google' ? 'github' : 'google';
+        const otherKey = provider === 'google' ? 'oauthGithubId' : 'oauthGoogleId';
+        const hasPassword = account.passwordSet !== false && Boolean(account.passwordHash || account.hash);
+        if (account[identityKey] && !hasPassword && !(account[otherKey] && enabled(otherProvider))) {
+            return res.status(409).json({ error: 'Set a portal password or connect another available sign-in provider before unlinking your last sign-in method.' });
+        }
+        delete account[identityKey];
+        delete account[provider === 'google' ? 'oauthGoogleEmail' : 'oauthGithubEmail'];
+        data.oauthFlows = (data.oauthFlows || []).filter(flow => !(flow.accountId === account.id && flow.provider === provider));
+        writeData(data);
+        res.json({ message: `${provider === 'google' ? 'Google' : 'GitHub'} unlinked. Your portal account and projects are unchanged.` });
+    });
     api('get', '/api/auth/oauth/:provider', (req, res) => {
         res.setHeader('Cache-Control', 'no-store');
         const provider = req.params.provider;

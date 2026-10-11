@@ -7,7 +7,7 @@
     <title>Crimson Creations</title>
     <meta name="description" content="The Crimson Creations client portal for checking website project progress.">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-    <link rel="stylesheet" href="style.css?v=22">
+    <link rel="stylesheet" href="style.css?v=23">
     <meta name="robots" content="noindex, nofollow">
 </head>
 
@@ -135,7 +135,7 @@
                             <button class="btn btn-secondary portal-signout" id="portal-signout" type="button">Sign out</button>
                         </div>
                     </div>
-                        <p id="connected-providers" class="portal-status" role="status"></p><div id="password-setup-notice" class="password-setup-notice" hidden><strong>Add a portal password</strong><p>Google and GitHub do not share your password with us. Set a separate password to sign in with email too.</p><button id="setup-password-link" class="btn btn-secondary" type="button">Email me a password setup link</button><p id="setup-password-status" class="portal-status" role="status"></p></div><details class="account-recovery"><summary>Connect Google or GitHub</summary><p>Connect your Google or GitHub account to this dashboard. Its email can be different from your portal email.</p><div class="social-signin" data-social-signin><button class="btn btn-secondary" type="button" data-oauth="google" disabled><i class="fa-brands fa-google" aria-hidden="true"></i> Continue with Google</button><button class="btn btn-secondary" type="button" data-oauth="github" disabled><i class="fa-brands fa-github" aria-hidden="true"></i> Continue with GitHub</button><p class="portal-status" data-provider-status role="status"></p></div></details><div class="portal-profile">
+                        <p id="connected-providers" class="portal-status" role="status"></p><div class="social-signin"><button class="btn btn-secondary" type="button" data-unlink-provider="google" hidden>Unlink Google</button><button class="btn btn-secondary" type="button" data-unlink-provider="github" hidden>Unlink GitHub</button></div><p id="unlink-provider-status" class="portal-status" role="status"></p><div id="password-setup-notice" class="password-setup-notice" hidden><strong>Add a portal password</strong><p>Google and GitHub do not share your password with us. Set a separate password to sign in with email too.</p><button id="setup-password-link" class="btn btn-secondary" type="button">Email me a password setup link</button><p id="setup-password-status" class="portal-status" role="status"></p></div><details class="account-recovery"><summary>Connect Google or GitHub</summary><p>Connect your Google or GitHub account to this dashboard. Its email can be different from your portal email.</p><div class="social-signin" data-social-signin><button class="btn btn-secondary" type="button" data-oauth="google" disabled><i class="fa-brands fa-google" aria-hidden="true"></i> Continue with Google</button><button class="btn btn-secondary" type="button" data-oauth="github" disabled><i class="fa-brands fa-github" aria-hidden="true"></i> Continue with GitHub</button><p class="portal-status" data-provider-status role="status"></p></div></details><div class="portal-profile">
                         <div class="profile-avatar" data-client-initials>CC</div>
                         <div>
                             <strong data-client-name>Client</strong>
@@ -449,8 +449,8 @@
             <span>(c) 2026 Crimson Creations. All rights reserved.</span>
         </div>
     </footer>
-<script src="script.js?v=48"></script>
-<script src="enhancements.js?v=9" defer></script>
+<script src="script.js?v=49"></script>
+<script src="enhancements.js?v=10" defer></script>
 <script src="logo-upload.js?v=2" defer></script>
     <script src="portal-tools.js?v=1"></script>
 </body>
