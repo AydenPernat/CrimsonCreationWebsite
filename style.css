@@ -177,9 +177,6 @@ textarea {
 
 /* Distance-based streaks with a staged start and a soft crimson bloom. */
 .nav-selected-orbit {
-    --orbit-duration: 2.8s;
-    --tail-step: .6px;
-    --tail-fraction: .006;
     position: absolute;
     inset: 0;
     width: 100%;
@@ -189,29 +186,10 @@ textarea {
     filter: drop-shadow(0 0 3px rgba(168, 12, 28, .95)) drop-shadow(0 0 8px rgba(168, 12, 28, .65));
 }
 .nav-selected-orbit path {
-    --head-delay: 0s;
-    --orbit-start: calc(var(--tail-step) * var(--trail-index));
     fill: none;
     stroke: #a80c1c;
     stroke-width: 2;
     stroke-linecap: round;
-    stroke-dasharray: 1.2 98.8;
-    animation:
-        nav-selected-lap var(--orbit-duration) linear var(--head-delay) infinite,
-        nav-streak-appear .08s linear calc(var(--head-delay) + var(--orbit-duration) * var(--tail-fraction) * var(--trail-index)) both;
-}
-.nav-selected-orbit path[data-streak="1"] { --head-delay: calc(var(--orbit-duration) * .5); }
-@keyframes nav-selected-lap {
-    from { stroke-dashoffset: var(--orbit-start); }
-    to { stroke-dashoffset: calc(var(--orbit-start) - 100px); }
-}
-@keyframes nav-streak-appear {
-    from { opacity: 0; }
-    to { opacity: 1; }
-}
-@media (prefers-reduced-motion: reduce) {
-    .nav-selected-orbit path { animation: none !important; opacity: 1; stroke-dashoffset: var(--orbit-start); }
-    .nav-selected-orbit path[data-streak="1"] { stroke-dashoffset: calc(var(--orbit-start) - 50px); }
 }
 .menu-toggle {
     display: none;
@@ -2792,12 +2770,6 @@ textarea:focus {
         transition-delay: var(--menu-delay);
     }
 
-    .nav-selected-orbit {
-        --orbit-duration: 4.8s;
-        --tail-step: .9px;
-        --tail-fraction: .009;
-    }
-    .site-nav:not(.active) .nav-selected-orbit path { animation: none; opacity: 0; }
     .site-nav a:nth-child(1) { --menu-delay: 45ms; }
     .site-nav a:nth-child(2) { --menu-delay: 90ms; }
     .site-nav a:nth-child(3) { --menu-delay: 135ms; }

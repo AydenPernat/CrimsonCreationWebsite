@@ -6,6 +6,61 @@ const { test } = require('node:test');
 const { PGlite } = require('@electric-sql/pglite');
 const { createDataStore, registerApi } = require('./data-store.cjs');
 
+test('selected menu trails use measured SVG lengths, stage the second bloom, and stop while hidden', () => {
+    const source = fs.readFileSync(path.join(__dirname, 'script.js'), 'utf8');
+    const frames = new Map();
+    let frameId = 0;
+    const listeners = {};
+    const media = matches => ({ matches, addEventListener(type, fn) { this.changed = fn; } });
+    const mobile = media(true);
+    const reduced = media(false);
+    const makeElement = () => ({ dataset: {}, children: [], attributes: {}, style: {}, classList: { add() {} },
+        setAttribute(name, value) { this.attributes[name] = value; }, append(child) { this.children.push(child); }, getTotalLength: () => 400 });
+    const link = { clientWidth: 342, clientHeight: 48, append(element) { this.orbit = element; } };
+    let open = false;
+    const nav = { querySelectorAll: () => [link], classList: { contains: () => open } };
+    const document = { hidden: false, getElementById: id => id === 'navbar' ? nav : null, querySelector: () => null,
+        createElementNS: makeElement, addEventListener(type, fn) { listeners[type] = fn; } };
+    const context = { document, window: { matchMedia: query => query.includes('820px') ? mobile : reduced,
+        addEventListener(type, fn) { listeners[type] = fn; } },
+        requestAnimationFrame(fn) { const id = ++frameId; frames.set(id, fn); return id; },
+        cancelAnimationFrame(id) { frames.delete(id); } };
+    vm.createContext(context);
+    vm.runInContext(source.slice(0, source.indexOf('// Keep internal navigation')) + '\nfunction syncOrbits() { selectedNavOrbits.forEach(orbit => orbit.sync()); }', context);
+    const trails = link.orbit.children;
+    const advance = time => { const entries = [...frames]; frames.clear(); entries.forEach(([, fn]) => fn(time)); };
+    assert.equal(trails.length, 80);
+    assert.equal(frames.size, 0, 'A closed phone menu must not use animation frames');
+    assert.equal(trails[0].attributes.pathLength, undefined, 'Do not depend on normalized SVG pathLength');
+    assert.equal(trails[0].style.strokeDasharray, '4.8 395.2');
+    open = true; context.syncOrbits(); advance(0);
+    assert.equal(trails[0].style.opacity, '1');
+    assert.equal(trails[0].style.strokeDashoffset, '0px');
+    assert.equal(trails[40].style.opacity, '0', 'Start with only one head at top center');
+    advance(2300);
+    assert.equal(trails[40].style.opacity, '0');
+    advance(2400);
+    assert.equal(trails[0].style.strokeDashoffset, '-200px');
+    assert.equal(trails[40].style.opacity, '1');
+    assert.equal(trails[40].style.strokeDashoffset, '0px');
+    advance(4200);
+    assert.equal(trails[79].style.opacity, '1', 'Both complete fading tails become visible');
+    const mobileTail = parseFloat(trails[39].style.strokeDashoffset) - parseFloat(trails[0].style.strokeDashoffset);
+    open = false; context.syncOrbits();
+    assert.equal(frames.size, 0);
+    assert.equal(trails[0].style.opacity, '0');
+    mobile.matches = false; mobile.changed(); advance(5000); advance(8000);
+    const desktopTail = parseFloat(trails[39].style.strokeDashoffset) - parseFloat(trails[0].style.strokeDashoffset);
+    assert.ok(mobileTail > desktopTail, 'Phone tails stay longer than desktop tails');
+    reduced.matches = true; reduced.changed();
+    assert.equal(frames.size, 0);
+    assert.equal(trails[40].style.strokeDashoffset, '-200px', 'Reduced motion keeps two static opposite blooms');
+    document.hidden = true; listeners.visibilitychange();
+    assert.equal(trails[0].style.opacity, '0');
+    document.hidden = false; listeners.visibilitychange();
+    assert.equal(trails[0].style.opacity, '1');
+});
+
 test('failed sign-out keeps the session visible and successful sign-out clears it', async () => {
     const source = fs.readFileSync(path.join(__dirname, 'script.js'), 'utf8');
     let click;

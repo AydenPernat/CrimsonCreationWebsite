@@ -4,7 +4,10 @@ const nav = document.getElementById('navbar');
 const header = document.querySelector('.site-header');
 
 // Start at the top center; introduce the opposite streak after half a lap.
-if (nav && typeof ResizeObserver !== 'undefined') {
+const selectedNavOrbits = [];
+if (nav) {
+    const mobileOrbit = window.matchMedia('(max-width: 820px)');
+    const reducedOrbitMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
     nav.querySelectorAll('a.active').forEach(link => {
         const svgNamespace = 'http://www.w3.org/2000/svg';
         const orbit = document.createElementNS(svgNamespace, 'svg');
@@ -15,27 +18,75 @@ if (nav && typeof ResizeObserver !== 'undefined') {
         for (let streak = 0; streak < 2; streak++) {
             for (let index = 0; index < 40; index++) {
                 const part = document.createElementNS(svgNamespace, 'path');
-                part.setAttribute('pathLength', '100');
                 part.dataset.streak = String(streak);
-                part.style.setProperty('--trail-index', String(index));
                 part.setAttribute('stroke-opacity', String((1 - index / 39) ** 1.8));
+                part.style.opacity = '0';
                 orbit.append(part);
-                trails.push(part);
+                trails.push({ part, streak, index });
             }
         }
         link.append(orbit);
+        let length = 0;
+        let frame = null;
+        let startedAt = null;
+        let lastPaint = -Infinity;
+        const isVisible = () => !document.hidden && length > 0 && (!mobileOrbit.matches || nav.classList.contains('active'));
+        const paint = elapsed => {
+            const duration = mobileOrbit.matches ? 4800 : 2800;
+            const tailFraction = mobileOrbit.matches ? .009 : .006;
+            trails.forEach(({ part, streak, index }) => {
+                const headProgress = elapsed / duration - streak * .5;
+                const visible = reducedOrbitMotion.matches || headProgress >= index * tailFraction;
+                part.style.opacity = visible ? '1' : '0';
+                const position = reducedOrbitMotion.matches ? streak * .5 : Math.max(0, headProgress) % 1;
+                // Actual SVG lengths and plain numbers avoid Safari's CSS calc/pathLength animation differences.
+                part.style.strokeDashoffset = `${(index * tailFraction - position) * length}px`;
+            });
+        };
+        const tick = now => {
+            frame = null;
+            if (!isVisible()) { sync(); return; }
+            if (startedAt === null) startedAt = now;
+            // Limit phone painting to 30fps; stop entirely when its menu is closed.
+            if (now - lastPaint >= (mobileOrbit.matches ? 30 : 14)) {
+                paint(now - startedAt);
+                lastPaint = now;
+            }
+            frame = requestAnimationFrame(tick);
+        };
+        const sync = () => {
+            if (!isVisible() || reducedOrbitMotion.matches) {
+                if (frame !== null) cancelAnimationFrame(frame);
+                frame = null;
+                startedAt = null;
+                lastPaint = -Infinity;
+                if (isVisible()) paint(0);
+                else trails.forEach(({ part }) => { part.style.opacity = '0'; });
+                return;
+            }
+            if (frame === null) frame = requestAnimationFrame(tick);
+        };
         const resizeOrbit = () => {
             const width = link.clientWidth;
             const height = link.clientHeight;
+            if (width < 3 || height < 3) { length = 0; sync(); return; }
             const radius = Math.max(0, Math.min(width, height) / 2 - 1);
             orbit.setAttribute('viewBox', `0 0 ${width} ${height}`);
             const right = width - 1;
             const bottom = height - 1;
             const route = `M ${width / 2} 1 H ${right - radius} A ${radius} ${radius} 0 0 1 ${right} ${1 + radius} V ${bottom - radius} A ${radius} ${radius} 0 0 1 ${right - radius} ${bottom} H ${1 + radius} A ${radius} ${radius} 0 0 1 1 ${bottom - radius} V ${1 + radius} A ${radius} ${radius} 0 0 1 ${1 + radius} 1 Z`;
-            trails.forEach(part => part.setAttribute('d', route));
+            trails.forEach(({ part }) => part.setAttribute('d', route));
+            length = trails[0].part.getTotalLength();
+            trails.forEach(({ part }) => { part.style.strokeDasharray = `${length * .012} ${length * .988}`; });
+            sync();
         };
+        selectedNavOrbits.push({ sync });
         resizeOrbit();
-        new ResizeObserver(resizeOrbit).observe(link);
+        if (typeof ResizeObserver !== 'undefined') new ResizeObserver(resizeOrbit).observe(link);
+        else window.addEventListener('resize', resizeOrbit, { passive: true });
+        mobileOrbit.addEventListener('change', resizeOrbit);
+        reducedOrbitMotion.addEventListener('change', sync);
+        document.addEventListener('visibilitychange', sync);
     });
 }
 // Keep internal navigation readable while preserving the separate page files.
@@ -138,6 +189,7 @@ function setMenuState(isOpen) {
     menuButton.setAttribute('aria-label', isOpen ? 'Close menu' : 'Open menu');
     menuIcon.classList.toggle('fa-bars', !isOpen);
     menuIcon.classList.toggle('fa-xmark', isOpen);
+    selectedNavOrbits.forEach(orbit => orbit.sync());
 
     if (!isOpen && wasOpen) {
         window.setTimeout(() => menuButton.classList.remove('is-closing'), 350);
