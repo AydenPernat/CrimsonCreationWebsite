@@ -32,13 +32,14 @@ if (nav) {
         let lastPaint = -Infinity;
         const isVisible = () => !document.hidden && length > 0 && (!mobileOrbit.matches || nav.classList.contains('active'));
         const paint = elapsed => {
-            const duration = mobileOrbit.matches ? 4800 : 2800;
+            // Keep these small selection indicators moving, with a gentler pace when reduced motion is requested.
+            const duration = (mobileOrbit.matches ? 4800 : 2800) * (reducedOrbitMotion.matches ? 2 : 1);
             const tailFraction = mobileOrbit.matches ? .009 : .006;
             trails.forEach(({ part, streak, index }) => {
                 const headProgress = elapsed / duration - streak * .5;
-                const visible = reducedOrbitMotion.matches || headProgress >= index * tailFraction;
+                const visible = headProgress >= index * tailFraction;
                 part.style.opacity = visible ? '1' : '0';
-                const position = reducedOrbitMotion.matches ? streak * .5 : Math.max(0, headProgress) % 1;
+                const position = Math.max(0, headProgress) % 1;
                 // Actual SVG lengths and plain numbers avoid Safari's CSS calc/pathLength animation differences.
                 part.style.strokeDashoffset = `${(index * tailFraction - position) * length}px`;
             });
@@ -55,13 +56,12 @@ if (nav) {
             frame = requestAnimationFrame(tick);
         };
         const sync = () => {
-            if (!isVisible() || reducedOrbitMotion.matches) {
+            if (!isVisible()) {
                 if (frame !== null) cancelAnimationFrame(frame);
                 frame = null;
                 startedAt = null;
                 lastPaint = -Infinity;
-                if (isVisible()) paint(0);
-                else trails.forEach(({ part }) => { part.style.opacity = '0'; });
+                trails.forEach(({ part }) => { part.style.opacity = '0'; });
                 return;
             }
             if (frame === null) frame = requestAnimationFrame(tick);

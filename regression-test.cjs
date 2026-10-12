@@ -53,11 +53,15 @@ test('selected menu trails use measured SVG lengths, stage the second bloom, and
     const desktopTail = parseFloat(trails[39].style.strokeDashoffset) - parseFloat(trails[0].style.strokeDashoffset);
     assert.ok(mobileTail > desktopTail, 'Phone tails stay longer than desktop tails');
     reduced.matches = true; reduced.changed();
-    assert.equal(frames.size, 0);
-    assert.equal(trails[40].style.strokeDashoffset, '-200px', 'Reduced motion keeps two static opposite blooms');
+    assert.equal(frames.size, 1, 'Reduced motion uses a slower orbit instead of freezing the menu indicators');
+    advance(8100);
+    const previousOffset = trails[0].style.strokeDashoffset;
+    advance(9100);
+    assert.notEqual(trails[0].style.strokeDashoffset, previousOffset, 'Trails must continue moving with iPhone reduced motion enabled');
     document.hidden = true; listeners.visibilitychange();
     assert.equal(trails[0].style.opacity, '0');
     document.hidden = false; listeners.visibilitychange();
+    advance(10000);
     assert.equal(trails[0].style.opacity, '1');
 });
 
