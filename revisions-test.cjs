@@ -6,6 +6,37 @@ const crypto = require('node:crypto');
 const { spawn } = require('node:child_process');
 const vm = require('node:vm');
 
+test('workspace refreshes cannot overwrite a new balance or another signed-in account', async () => {
+    const source = fs.readFileSync(path.join(__dirname, 'script.js'), 'utf8');
+    let reply;
+    let rendered = 0;
+    const session = { id: 'owner', revisions: 0 };
+    const context = {
+        workspaceUpdates: {}, currentSession: session, revisionBalanceVersion: 0,
+        apiRequest: () => new Promise(resolve => { reply = resolve; }),
+        renderPortalRevisions() {}, renderWorkspaceUpdates() { rendered++; }
+    };
+    vm.createContext(context);
+    vm.runInContext(source.slice(source.indexOf('async function loadWorkspaceUpdates() {'), source.indexOf('setInterval(() => {', source.indexOf('async function loadWorkspaceUpdates() {'))), context);
+    const staleRefresh = context.loadWorkspaceUpdates();
+    context.revisionBalanceVersion++;
+    session.revisions = 2;
+    reply({ revisions: 0, requests: [] });
+    await staleRefresh;
+    assert.equal(session.revisions, 2);
+    assert.equal(rendered, 1);
+    const previousAccountRefresh = context.loadWorkspaceUpdates();
+    context.currentSession = { id: 'client', revisions: 5 };
+    reply({ revisions: 2, requests: [] });
+    await previousAccountRefresh;
+    assert.equal(context.currentSession.revisions, 5);
+    assert.equal(rendered, 1, 'Ignore workspace content from the previous account');
+    const freshRefresh = context.loadWorkspaceUpdates();
+    reply({ revisions: 4, requests: [] });
+    await freshRefresh;
+    assert.equal(context.currentSession.revisions, 4);
+});
+
 test('own-account revision clicks save without replacing the row and show failures inline', async () => {
     const source = fs.readFileSync(path.join(__dirname, 'script.js'), 'utf8');
     let click;
@@ -22,13 +53,14 @@ test('own-account revision clicks save without replacing the row and show failur
     let portalBalance = 0;
     const context = {
         accountManagementList: { addEventListener(_type, handler) { click = handler; } },
-        currentAccountIsAdmin: () => true, currentSession: session, getAccount: () => session,
+        currentAccountIsAdmin: () => true, currentSession: session, getAccount: () => session, revisionBalanceVersion: 0,
         revisionUpdatesPending: new Set(), accountManagementCache: [{ accountId: 'owner', revisions: 0 }],
         normalizeEmail: email => String(email || '').trim().toLowerCase(),
         renderPortalRevisions: () => { portalBalance = session.revisions; },
         apiRequest: async (route, options) => {
-            assert.equal(route, '/api/accounts/owner/revisions');
-            assert.equal(options.method, 'PATCH');
+            assert.equal(route, '/api/accounts/revisions');
+            assert.equal(options.method, 'POST');
+            assert.equal(JSON.parse(options.body).accountId, 'owner');
             assert.equal(JSON.parse(options.body).delta, 1);
             if (fail) throw new Error('Test connection interrupted');
             return { account: { accountId: 'owner', email: session.email, revisions: 1 } };
@@ -78,7 +110,7 @@ test('revision permissions, balances, redemption, retries, and account summaries
         return {status:result.status,body:await result.json()};
     };
     const stored = () => JSON.parse(fs.readFileSync(path.join(dir,'data.json')));
-    const patch = (delta,token=ownerToken) => call('/api/accounts/client/revisions','PATCH',{delta},token);
+    const patch = (delta,token=ownerToken) => call('/api/accounts/revisions','POST',{accountId:'client',delta},token);
     const revision = () => ({request_kind:'revision',revision_request_id:crypto.randomUUID(),details:'Update my homepage',email:'spoof@example.test',name:'Spoof'});
     try {
         await new Promise((resolve,reject) => { child.stdout.once('data',resolve); child.once('error',reject); child.once('exit',code => reject(new Error(`Server exited ${code}: ${stderr}`))); });
@@ -97,12 +129,14 @@ test('revision permissions, balances, redemption, retries, and account summaries
         assert.equal((await patch(0)).status,400);
         assert.equal((await patch('1')).status,400);
         assert.equal((await patch(-1)).status,409);
-        const ownRevision = await call('/api/accounts/owner/revisions','PATCH',{delta:1},ownerToken);
+        assert.equal((await call('/api/accounts/revisions','POST',{delta:1},ownerToken)).status,400);
+        const ownRevision = await call('/api/accounts/revisions','POST',{accountId:'owner',delta:1},ownerToken);
         assert.equal(ownRevision.status,200,'Owners can add revisions to their own account');
         assert.equal(ownRevision.body.account.revisions,1);
         assert.equal((await call('/api/auth/me','GET',undefined,ownerToken)).body.account.revisions,1);
         assert.equal((await call('/api/my-workspace','GET',undefined,ownerToken)).body.revisions,1);
-        assert.equal((await call('/api/accounts/owner/revisions','PATCH',{delta:-1},ownerToken)).body.account.revisions,0);
+        assert.equal((await call('/api/accounts/revisions','POST',{accountId:'owner',delta:-1},ownerToken)).body.account.revisions,0);
+        assert.equal((await call('/api/accounts/owner/revisions','PATCH',{delta:1},ownerToken)).body.account.revisions,1,'Existing API callers remain supported');
         assert.equal((await call('/api/contact','POST',revision())).status,401);
         assert.equal((await call('/api/contact','POST',revision(),clientToken)).status,409);
         assert.equal((await patch(1)).body.account.revisions,1);

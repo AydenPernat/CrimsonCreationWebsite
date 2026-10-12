@@ -27,7 +27,7 @@ for (const file of fs.readdirSync(__dirname)) {
 }
 fs.mkdirSync(path.join(testDir, 'img'));
 fs.copyFileSync(path.join(__dirname, 'img', 'crimson-logo.jpg'), path.join(testDir, 'img', 'crimson-logo.jpg'));
-fs.copyFileSync(path.join(__dirname, 'img', 'Crimson-logo-dragon-noBG.png'), path.join(testDir, 'img', 'Crimson-logo-dragon-noBG.png'));
+fs.copyFileSync(path.join(__dirname, 'img', 'Favicon.png'), path.join(testDir, 'img', 'Favicon.png'));
 for (const session of data.sessions) session.tabHash = crypto.createHash('sha256').update(testTab).digest('hex');
 data.accounts[0].oauthGoogleId = 'legacy-google-account';
 data.accounts[1].oauthGithubId = 'social-account';
@@ -63,7 +63,9 @@ const post = (route, body, cookie) => fetch(base + route, {
         child.once('error', reject);
         child.once('exit', code => reject(new Error(`Server exited ${code}: ${errors}`)));
     });
-    const legacyProfile = await (await fetch(base+'/api/auth/me',{headers:{Cookie:'crimson_session='+sessionToken}})).json();
+    const legacyResponse = await fetch(base+'/api/auth/me',{headers:{Cookie:'crimson_session='+sessionToken}});
+    assert.equal(legacyResponse.headers.get('cache-control'),'no-store','Private account responses must not be cached');
+    const legacyProfile = await legacyResponse.json();
     assert.equal(legacyProfile.account.needsPassword,false,'Existing password accounts linked to Google should not see password setup');
     const socialProfile = await (await fetch(base+'/api/auth/me',{headers:{Cookie:'crimson_session=subscriber-session'}})).json();
     assert.equal(socialProfile.account.needsPassword,true,'Accounts created without a portal password should see password setup');
@@ -162,7 +164,7 @@ const post = (route, body, cookie) => fetch(base + route, {
     for (const publicPath of ['/services', '/style.css', '/script.js', '/enhancements.js', '/logo-upload.js', '/vendor/pako.min.js', '/vendor/utif.js', '/vendor/heic-to.js', '/vendor/heic-to.LICENSE', '/sitemap.xml', '/robots.txt', '/api/auth/providers', '/img/crimson-logo.jpg']) {
         assert.equal((await fetch(base + publicPath)).status, 200, publicPath);
     }
-    const favicon = await fetch(base + '/img/Crimson-logo-dragon-noBG.png?v=dragon1');
+    const favicon = await fetch(base + '/img/Favicon.png?v=favicon1');
     assert.equal(favicon.status, 200);
     assert.equal(favicon.headers.get('content-type'), 'image/png');
     assert.match(favicon.headers.get('cache-control'), /max-age=31536000/);

@@ -155,10 +155,35 @@ if (menuButton && nav) {
 
     document.addEventListener('keydown', event => {
         if (event.key === 'Escape') {
+            const focusWasInMenu = nav.classList.contains('active') && nav.contains(document.activeElement);
             setMenuState(false);
+            if (focusWasInMenu) menuButton.focus({ preventScroll: true });
         }
     });
+    document.addEventListener('click', event => {
+        if (nav.classList.contains('active') && !nav.contains(event.target) && !menuButton.contains(event.target)) setMenuState(false);
+    });
+    window.matchMedia('(max-width: 820px)').addEventListener('change', () => setMenuState(false));
 }
+
+document.querySelectorAll('.site-nav a.active').forEach(link => link.setAttribute('aria-current', 'page'));
+
+// Let keyboard users move between tab choices without tabbing through every button.
+document.querySelectorAll('[role="tablist"]').forEach(tablist => {
+    const tabs = [...tablist.querySelectorAll('[role="tab"]')];
+    const selectTab = selected => tabs.forEach(tab => { tab.tabIndex = tab === selected ? 0 : -1; });
+    selectTab(tabs.find(tab => tab.getAttribute('aria-selected') === 'true') || tabs[0]);
+    tabs.forEach(tab => tab.addEventListener('click', () => selectTab(tab)));
+    tablist.addEventListener('keydown', event => {
+        const index = tabs.indexOf(event.target);
+        if (index < 0 || !['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+        event.preventDefault();
+        const nextIndex = event.key === 'Home' ? 0 : event.key === 'End' ? tabs.length - 1 : (index + (event.key === 'ArrowRight' ? 1 : -1) + tabs.length) % tabs.length;
+        const next = tabs[nextIndex];
+        next.click();
+        next.focus({ preventScroll: true });
+    });
+});
 
 if (header) {
     const updateHeader = () => {
@@ -483,6 +508,7 @@ const portalNewsletterToggle = document.getElementById('portal-newsletter-toggle
 const portalNewsletterDescription = document.getElementById('portal-newsletter-description');
 const portalNewsletterStatus = document.getElementById('portal-newsletter-status');
 let currentSession = null;
+let revisionBalanceVersion = 0;
 const crimsonTabReady = (async () => {
     const random = () => [...crypto.getRandomValues(new Uint8Array(32))].map(byte => byte.toString(16).padStart(2, '0')).join('');
     let token;
@@ -508,9 +534,10 @@ const crimsonTabReady = (async () => {
 const apiRequest = async (url, options = {}) => {
     let response;
     try {
-        response = await fetch(url, { ...options, credentials: 'same-origin', headers: { 'Content-Type': 'application/json', 'X-Crimson-Tab': await crimsonTabReady, ...(options.headers || {}) } });
-    } catch {
-        throw new Error('The site connection is unavailable. Start the local server and try again.');
+        response = await fetch(url, { ...options, signal: options.signal || AbortSignal.timeout(20000), credentials: 'same-origin', headers: { 'Content-Type': 'application/json', 'X-Crimson-Tab': await crimsonTabReady, ...(options.headers || {}) } });
+    } catch (error) {
+        if (error.name === 'TimeoutError') throw new Error('The server took too long to respond. Please try again.');
+        throw new Error('The site connection is unavailable. Check your connection and try again.');
     }
     const body = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(body.error || 'The request could not be completed.');
@@ -706,12 +733,19 @@ if (portalSignupForm) {
 
 if (portalSignout) {
     portalSignout.addEventListener('click', async () => {
-        await apiRequest('/api/auth/signout', { method: 'POST' }).catch(() => {});
-        currentSession = null;
-        if (portalPreview) portalPreview.hidden = true;
-        if (portalLayout) portalLayout.classList.add('signed-out');
-        showSigninPanel();
-        if (portalStatus) portalStatus.textContent = 'You have been signed out.';
+        if (portalSignout.disabled) return;
+        portalSignout.disabled = true;
+        try {
+            await apiRequest('/api/auth/signout', { method: 'POST' });
+            currentSession = null;
+            if (portalPreview) portalPreview.hidden = true;
+            if (portalLayout) portalLayout.classList.add('signed-out');
+            showSigninPanel();
+            window.dispatchEvent(new CustomEvent('crimson:signedout'));
+            if (portalStatus) portalStatus.textContent = 'You have been signed out.';
+        } catch (error) {
+            await showSiteDialog({ title: 'Could not sign out', message: `Your session is still signed in. ${error.message}`, confirmLabel: 'OK', cancelLabel: '', tone: 'info' });
+        } finally { portalSignout.disabled = false; }
     });
 }
 
@@ -991,7 +1025,7 @@ if (estimateForm) {
     if (revisionContactMode) {
         estimateForm.elements.namedItem('request_kind').value = 'revision';
         estimateForm.elements.namedItem('revision_request_id').value = crypto.randomUUID();
-        estimateForm.elements.namedItem('details').value = 'I would like to use one revision round for my website.\n\nRequested changes:\n';
+        estimateForm.elements.namedItem('details').placeholder = 'Describe the changes you want in this revision round.';
         document.querySelector('[data-contact-title]').textContent = 'Use a revision';
         document.querySelector('[data-contact-description]').textContent = 'Your account details are filled in. Add the changes you want, then send your revision request.';
         if (revisionRequestNote) revisionRequestNote.hidden = false;
@@ -1020,11 +1054,13 @@ if (estimateForm) {
             const response = await fetch(estimateForm.action, {
                 method: 'POST',
                 body: new URLSearchParams(new FormData(estimateForm)),
+                signal: AbortSignal.timeout(20000),
                 headers: { Accept: 'application/json', 'Content-Type': 'application/x-www-form-urlencoded', 'X-Crimson-Tab': await crimsonTabReady }
             });
             const result = await response.json();
             if (!response.ok || result.success === false) throw new Error(result.error || result.message || 'Unable to send request.');
             if (revisionContactMode && currentSession) {
+                revisionBalanceVersion++;
                 currentSession.revisions = result.revisions;
                 renderPortalRevisions();
                 if (revisionRequestNote) revisionRequestNote.textContent = `One revision used. ${result.revisions} remaining.`;
@@ -1084,7 +1120,7 @@ async function loadProjectsFromServer() {
         websiteCountResolved = true;
         scheduleWebsiteCounters();
         if (workEmpty) {
-            workEmpty.textContent = 'Projects are temporarily unavailable. Start the site server and refresh to load the portfolio.';
+            workEmpty.textContent = 'Projects are temporarily unavailable. Please refresh or try again shortly.';
             workEmpty.hidden = workCards.length !== 0;
         }
     }
@@ -1702,11 +1738,12 @@ if (accountManagementList) {
             revisionButton.closest('.revision-actions').querySelectorAll('button').forEach(button => { button.disabled = true; });
             status.textContent = 'Saving revisions…';
             try {
-                const result = await apiRequest(`/api/accounts/${encodeURIComponent(id)}/revisions`, { method: 'PATCH', body: JSON.stringify({ delta }) });
+                const result = await apiRequest('/api/accounts/revisions', { method: 'POST', body: JSON.stringify({ accountId: id, delta }) });
                 if (!result.account || !Number.isSafeInteger(result.account.revisions)) throw new Error('The server did not confirm the revision balance. Refresh the page and try again.');
                 accountManagementCache = accountManagementCache.map(account => account.accountId === id ? result.account : account);
                 row.querySelector('[data-account-revision-balance]').textContent = `Revisions available: ${result.account.revisions}`;
                 if (result.account.accountId === getAccount()?.id || normalizeEmail(result.account.email) === normalizeEmail(getAccount()?.email)) {
+                    revisionBalanceVersion++;
                     currentSession.revisions = result.account.revisions;
                     renderPortalRevisions();
                 }
@@ -1964,9 +2001,12 @@ function renderWorkspaceUpdates(requests) {
 
 async function loadWorkspaceUpdates() {
     if (!workspaceUpdates || !currentSession) return;
+    const session = currentSession;
+    const balanceVersion = revisionBalanceVersion;
     try {
         const result = await apiRequest('/api/my-workspace');
-        if (Number.isSafeInteger(result.revisions)) {
+        if (currentSession !== session) return;
+        if (balanceVersion === revisionBalanceVersion && Number.isSafeInteger(result.revisions)) {
             currentSession.revisions = result.revisions;
             renderPortalRevisions();
         }

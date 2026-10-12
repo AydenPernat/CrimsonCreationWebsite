@@ -132,7 +132,7 @@ if (location.pathname === '/portal' || location.pathname === '/portal.html') { w
     window.addEventListener('pageshow', () => { for (const field of fields) field.value = ''; });
 })();
 
-document.getElementById('portal-signout')?.addEventListener('click', () => { for (const id of ['portal-email','portal-password']) { const field = document.getElementById(id); if (field) { field.value = ''; field.readOnly = true; } } });
+window.addEventListener('crimson:signedout', () => { for (const id of ['portal-email','portal-password']) { const field = document.getElementById(id); if (field) { field.value = ''; field.readOnly = true; } } });
 
 (() => {
     const status = document.getElementById('unlink-provider-status');

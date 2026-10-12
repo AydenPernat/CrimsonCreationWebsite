@@ -24,6 +24,10 @@ const authAttempts = new Map();
 const contactAttempts = new Map();
 const unsubscribeAttempts = new Map();
 
+app.use('/api', (_request, response, next) => {
+    response.setHeader('Cache-Control', 'no-store');
+    next();
+});
 app.use('/api/backups', express.json({ limit: '13mb' }));
 app.use(express.json({ limit: '100kb' }));
 app.set('trust proxy', 1);
@@ -74,9 +78,9 @@ Object.entries(cleanPageRoutes).forEach(([cleanPath, fileName]) => {
     app.get(`/${fileName}`, (_request, response) => response.sendFile(path.join(__dirname, fileName)));
 });
 // Keep the favicon cached across full-page navigation. Bump its HTML version when replacing the artwork.
-app.get(['/favicon.ico', '/img/Crimson-logo-dragon-noBG.png'], (request, response) => {
-    const versioned = request.query.v === 'dragon1';
-    response.sendFile(path.join(__dirname, 'img', 'Crimson-logo-dragon-noBG.png'), {
+app.get(['/favicon.ico', '/img/Favicon.png'], (request, response) => {
+    const versioned = request.query.v === 'favicon1';
+    response.sendFile(path.join(__dirname, 'img', 'Favicon.png'), {
         maxAge: versioned ? '1y' : '1h', immutable: versioned
     });
 });
@@ -593,19 +597,23 @@ api('get', '/api/accounts', (request, response) => {
     response.json({ accounts });
 });
 
-api('patch', '/api/accounts/:accountId/revisions', (request, response) => {
+function adjustAccountRevisions(request, response) {
     if (!requireAccount(request, response, true)) return;
     const delta = request.body?.delta;
     if (delta !== 1 && delta !== -1) return response.status(400).json({ error: 'Add or subtract one revision at a time.' });
+    const accountId = request.params.accountId || request.body?.accountId;
+    if (typeof accountId !== 'string' || !accountId) return response.status(400).json({ error: 'Choose an account to update.' });
     const data = readData();
-    const account = data.accounts.find(item => item.id === request.params.accountId);
+    const account = data.accounts.find(item => item.id === accountId);
     if (!account) return response.status(404).json({ error: 'Account not found.' });
     const balance = revisionBalance(account) + delta;
     if (balance < 0 || balance > 10000) return response.status(409).json({ error: balance < 0 ? 'This account has no revisions to subtract.' : 'The revision limit has been reached.' });
     account.revisions = balance;
     writeData(data);
     response.json({ account: accountSummary(account, data) });
-});
+}
+api('post', '/api/accounts/revisions', adjustAccountRevisions);
+api('patch', '/api/accounts/:accountId/revisions', adjustAccountRevisions);
 
 api('delete', '/api/accounts/:accountId', (request, response) => {
     const requester = requireAccount(request, response, true);

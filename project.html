@@ -2,20 +2,20 @@
 <html lang="en">
 
 <head>
-    <link rel="icon" type="image/png" href="/img/Crimson-logo-dragon-noBG.png?v=dragon1">
+    <link rel="icon" type="image/png" href="/img/Favicon.png?v=favicon1">
     <meta charset="UTF-8">
     <meta name="robots" content="noindex, nofollow">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Crimson Creations</title>
+    <title>Project Details | Crimson Creations</title>
     <meta name="description" content="Project details from Crimson Creations.">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-    <link rel="stylesheet" href="style.css?v=23">
+    <link rel="stylesheet" href="style.css?v=25">
 </head>
 
 <body>
     <header class="site-header">
         <a class="brand" href="index.html"><span class="brand-mark"><img src="img/crimson-logo.jpg" alt=""></span><span>Crimson</span> Creations</a>
-        <button id="menu-toggle" class="menu-toggle" type="button" aria-label="Open menu" aria-expanded="false">
+        <button id="menu-toggle" class="menu-toggle" type="button" aria-label="Open menu" aria-expanded="false" aria-controls="navbar">
             <i id="bar" class="fa-solid fa-bars" aria-hidden="true"></i>
         </button>
         <nav id="navbar" class="site-nav" aria-label="Primary">
@@ -82,11 +82,11 @@
                     <form class="comment-form" id="comment-form">
                         <div class="field">
                             <label for="comment-subject">Subject</label>
-                            <input id="comment-subject" type="text" placeholder="What part of the project is this about?">
+                            <input id="comment-subject" type="text" maxlength="160" required placeholder="What part of the project is this about?">
                         </div>
                         <div class="field">
                             <label for="project-comment">Your comment</label>
-                            <textarea id="project-comment" placeholder="Share a thought about this project." rows="5"></textarea>
+                            <textarea id="project-comment" maxlength="4000" required placeholder="Share a thought about this project." rows="5"></textarea>
                         </div>
                         <button class="btn btn-primary" type="submit">Sign in to comment</button>
                         <p class="comment-note" id="comment-status" aria-live="polite">You must have an account before rating or commenting.</p>
@@ -114,8 +114,8 @@
             <span>(c) 2026 Crimson Creations. All rights reserved.</span>
         </div>
     </footer>
-<script src="script.js?v=49"></script>
-<script src="enhancements.js?v=10" defer></script>
+<script src="script.js?v=52"></script>
+<script src="enhancements.js?v=13" defer></script>
 </body>
 
 </html>

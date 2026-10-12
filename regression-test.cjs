@@ -6,6 +6,36 @@ const { test } = require('node:test');
 const { PGlite } = require('@electric-sql/pglite');
 const { createDataStore, registerApi } = require('./data-store.cjs');
 
+test('failed sign-out keeps the session visible and successful sign-out clears it', async () => {
+    const source = fs.readFileSync(path.join(__dirname, 'script.js'), 'utf8');
+    let click;
+    let fail = true;
+    let notice;
+    let signedOutEvents = 0;
+    const session = { id: 'owner' };
+    const context = {
+        portalSignout: { disabled: false, addEventListener(_event, handler) { click = handler; } },
+        currentSession: session, portalPreview: { hidden: false },
+        portalLayout: { classList: { add() {} } }, portalStatus: {}, showSigninPanel() {},
+        apiRequest: async () => { if (fail) throw new Error('Connection interrupted'); },
+        showSiteDialog: async options => { notice = options; },
+        window: { dispatchEvent() { signedOutEvents++; } }, CustomEvent: class {}
+    };
+    vm.createContext(context);
+    vm.runInContext(source.slice(source.indexOf('if (portalSignout) {'), source.indexOf('const ratingButtons')), context);
+    await click();
+    assert.equal(context.currentSession, session);
+    assert.equal(context.portalPreview.hidden, false);
+    assert.match(notice.message, /still signed in/);
+    assert.equal(context.portalSignout.disabled, false);
+    assert.equal(signedOutEvents, 0);
+    fail = false;
+    await click();
+    assert.equal(context.currentSession, null);
+    assert.equal(context.portalPreview.hidden, true);
+    assert.equal(signedOutEvents, 1);
+});
+
 test('projects persist across restart/deploy; concurrent saves and failed commits are safe', async () => {
     const dir = fs.mkdtempSync(path.join(__dirname, '.storage-test-'));
     const dataPath = path.join(dir, 'data.json');
