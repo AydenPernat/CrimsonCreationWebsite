@@ -22,23 +22,27 @@ if (nav) {
                 part.setAttribute('stroke-opacity', String((1 - index / 39) ** 1.8));
                 part.style.opacity = '0';
                 orbit.append(part);
-                trails.push({ part, streak, index });
+                trails.push({ part, streak, index, shown: false });
             }
         }
         link.append(orbit);
         let length = 0;
         let frame = null;
         let startedAt = null;
-        let lastPaint = -Infinity;
         const isVisible = () => !document.hidden && length > 0 && (!mobileOrbit.matches || nav.classList.contains('active'));
         const paint = elapsed => {
             // Keep these small selection indicators moving, with a gentler pace when reduced motion is requested.
-            const duration = (mobileOrbit.matches ? 4800 : 2800) * (reducedOrbitMotion.matches ? 2 : 1);
+            const duration = (mobileOrbit.matches ? 3200 : 2800) * (reducedOrbitMotion.matches ? 1.125 : 1);
             const tailFraction = mobileOrbit.matches ? .009 : .006;
-            trails.forEach(({ part, streak, index }) => {
+            trails.forEach(trail => {
+                const { part, streak, index } = trail;
                 const headProgress = elapsed / duration - streak * .5;
                 const visible = headProgress >= index * tailFraction;
-                part.style.opacity = visible ? '1' : '0';
+                if (visible !== trail.shown) {
+                    part.style.opacity = visible ? '1' : '0';
+                    trail.shown = visible;
+                }
+                if (!visible) return;
                 const position = Math.max(0, headProgress) % 1;
                 // Actual SVG lengths and plain numbers avoid Safari's CSS calc/pathLength animation differences.
                 part.style.strokeDashoffset = `${(index * tailFraction - position) * length}px`;
@@ -48,11 +52,8 @@ if (nav) {
             frame = null;
             if (!isVisible()) { sync(); return; }
             if (startedAt === null) startedAt = now;
-            // Limit phone painting to 30fps; stop entirely when its menu is closed.
-            if (now - lastPaint >= (mobileOrbit.matches ? 30 : 14)) {
-                paint(now - startedAt);
-                lastPaint = now;
-            }
+            // Paint on every available display frame; stop when the menu is closed.
+            paint(now - startedAt);
             frame = requestAnimationFrame(tick);
         };
         const sync = () => {
@@ -60,8 +61,7 @@ if (nav) {
                 if (frame !== null) cancelAnimationFrame(frame);
                 frame = null;
                 startedAt = null;
-                lastPaint = -Infinity;
-                trails.forEach(({ part }) => { part.style.opacity = '0'; });
+                trails.forEach(trail => { trail.part.style.opacity = '0'; trail.shown = false; });
                 return;
             }
             if (frame === null) frame = requestAnimationFrame(tick);

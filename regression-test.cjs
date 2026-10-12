@@ -37,13 +37,15 @@ test('selected menu trails use measured SVG lengths, stage the second bloom, and
     assert.equal(trails[0].style.opacity, '1');
     assert.equal(trails[0].style.strokeDashoffset, '0px');
     assert.equal(trails[40].style.opacity, '0', 'Start with only one head at top center');
-    advance(2300);
+    advance(16);
+    assert.notEqual(trails[0].style.strokeDashoffset, '0px', 'Paint consecutive phone display frames without the old 30fps cap');
+    advance(1500);
     assert.equal(trails[40].style.opacity, '0');
-    advance(2400);
+    advance(1600);
     assert.equal(trails[0].style.strokeDashoffset, '-200px');
     assert.equal(trails[40].style.opacity, '1');
     assert.equal(trails[40].style.strokeDashoffset, '0px');
-    advance(4200);
+    advance(2800);
     assert.equal(trails[79].style.opacity, '1', 'Both complete fading tails become visible');
     const mobileTail = parseFloat(trails[39].style.strokeDashoffset) - parseFloat(trails[0].style.strokeDashoffset);
     open = false; context.syncOrbits();
